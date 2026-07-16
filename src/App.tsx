@@ -77,72 +77,72 @@ const loadYouTubeApi = () => {
 const services = [
   {
     icon: Search,
-    title: 'Diagnostico local',
-    text: 'Mapeamos concorrentes, ticket medio, horarios fortes e oportunidades de busca no Google.',
+    title: 'Local diagnosis',
+    text: 'We map competitors, average ticket, peak hours, and high-intent search opportunities on Google.',
   },
   {
     icon: Clapperboard,
-    title: 'Criativos que dao fome',
-    text: 'Roteiros, ofertas e anuncios com apelo visual para delivery, reservas e visitas ao salao.',
+    title: 'Cravings-driven creatives',
+    text: 'Scripts, offers, and ads with visual appeal for delivery, reservations, and dine-in traffic.',
   },
   {
     icon: Target,
-    title: 'Midia paga',
-    text: 'Campanhas para Meta, Google e remarketing focadas em reservas, pedidos e recompra.',
+    title: 'Paid media',
+    text: 'Campaigns for Meta, Google, and remarketing focused on bookings, orders, and repeat purchases.',
   },
   {
     icon: MessageCircle,
-    title: 'Funil no WhatsApp',
-    text: 'Captura, qualificacao e follow-up para transformar cliques em mesas ocupadas.',
+    title: 'WhatsApp funnel',
+    text: 'Lead capture, qualification, and follow-up to turn clicks into occupied tables.',
   },
   {
     icon: BarChart3,
-    title: 'Relatorios claros',
-    text: 'Indicadores semanais de receita, custo por lead, reservas, pedidos e retorno por canal.',
+    title: 'Clear reporting',
+    text: 'Weekly indicators for revenue, cost per lead, reservations, orders, and return by channel.',
   },
 ]
 
 const testimonials = [
   {
     name: 'Marco L.',
-    role: 'Pizzaria artesanal em Sydney',
-    metric: '+41% em reservas no jantar',
+    role: 'Artisanal pizzeria in Sydney',
+    metric: '+41% in dinner bookings',
     youtubeId: 'YT6Gys9mkBo',
   },
   {
     name: 'Emily T.',
-    role: 'Cafe brunch em Melbourne',
-    metric: '2,8x retorno em midia paga',
+    role: 'Brunch cafe in Melbourne',
+    metric: '2.8x return on paid media',
     youtubeId: 'w01Ep_iYMkk',
   },
   {
     name: 'Rafael S.',
-    role: 'Restaurante latino em Brisbane',
-    metric: '+63% em pedidos no delivery',
+    role: 'Latin restaurant in Brisbane',
+    metric: '+63% in delivery orders',
     youtubeId: 'nTw6c8Yz97Y',
   },
 ]
 
 const faqs = [
   {
-    question: 'A BrandUp atende apenas restaurantes na Australia?',
+    question: 'Does BrandUp work only with restaurants in Australia?',
     answer:
-      'O foco principal e Australia, com estrategias para restaurantes, cafes, pizzarias, bares e dark kitchens que precisam crescer com previsibilidade.',
+      'Our main focus is Australia, with strategies for restaurants, cafes, pizzerias, bars, and dark kitchens that need predictable growth.',
   },
   {
-    question: 'Preciso ter equipe de marketing interna?',
+    question: 'Do I need an in-house marketing team?',
     answer:
-      'Nao. A proposta e funcionar como um time externo dedicado, cobrindo estrategia, criativos, campanhas, otimizacao e leitura de dados.',
+      'No. The goal is to operate as your dedicated external team, covering strategy, creatives, campaigns, optimization, and data analysis.',
   },
   {
-    question: 'Quanto tempo leva para ver resultados?',
+    question: 'How long does it take to see results?',
     answer:
-      'Os primeiros sinais costumam aparecer nas primeiras semanas, mas o plano e medido por ciclos mensais para melhorar oferta, publico e conversao.',
+      'The first signals usually appear in the first few weeks, but the plan is measured in monthly cycles to improve offer, audience, and conversion.',
   },
   {
-    question: 'Vocês fazem criativos e anuncios?',
+    question: 'Do you create ads and creatives?',
     answer:
-      'Sim. Criamos angulos de campanha, copys, direcao visual e estrutura de anuncios para Meta, Google e canais de conversao.',
+      'Yes. We create campaign angles, copy, visual direction, and ad structures for Meta, Google, and conversion channels.',
   },
 ]
 
@@ -319,7 +319,7 @@ function App() {
   }, [])
 
   const scrollToForm = () => {
-    document.getElementById('diagnostico')?.scrollIntoView({ behavior: 'smooth' })
+    document.getElementById('diagnostic')?.scrollIntoView({ behavior: 'smooth' })
   }
 
   const moveCarousel = (direction: 'left' | 'right') => {
@@ -382,11 +382,11 @@ function App() {
       <section className="hero" aria-label="BrandUp">
         <div className="section-inner hero-inner">
           <div className="nav">
-            <a className="brand" href="#top" aria-label="BrandUp inicio">
+            <a className="brand" href="#top" aria-label="BrandUp home">
               <span>Brand</span>Up
             </a>
             <button className="nav-cta" type="button" onClick={scrollToForm}>
-              <span>Diagnostico</span>
+              <span>Diagnosis</span>
               <ArrowRight aria-hidden="true" size={18} />
             </button>
           </div>
@@ -401,50 +401,50 @@ function App() {
             </p>
             <div className="hero-actions">
               <button className="primary-action" type="button" onClick={scrollToForm}>
-                Quero crescer meu restaurante
+                Grow my restaurant
                 <ArrowRight aria-hidden="true" size={19} />
               </button>
-              <a className="secondary-action" href="#servicos">
-                Ver estrategia
+              <a className="secondary-action" href="#services">
+                View strategy
               </a>
             </div>
           </div>
 
-          <div className="hero-stats" aria-label="Indicadores BrandUp">
+          <div className="hero-stats" aria-label="BrandUp indicators">
             <div>
-              <strong>90 dias</strong>
-              <span>para validar ofertas e canais</span>
+              <strong>90 days</strong>
+              <span>to validate offers and channels</span>
             </div>
             <div>
-              <strong>3 frentes</strong>
-              <span>trafego, criativo e conversao</span>
+              <strong>3 fronts</strong>
+              <span>traffic, creative, and conversion</span>
             </div>
             <div>
               <strong>AU</strong>
-              <span>estrategia para mercado local</span>
+              <span>strategy for the local market</span>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="notice-form" id="diagnostico">
+      <section className="notice-form" id="diagnostic">
         <div className="section-inner notice-inner">
           <div className="notice-left">
-            <p className="eyebrow">Aviso</p>
+            <p className="eyebrow">Notice</p>
             <h2 className="reveal-on-scroll">
-              <strong>Nao saia agora!</strong> Faltam poucos segundos para seu
-              restaurante <strong>vender mais.</strong>
+              <strong>Do not leave now!</strong> You are only a few seconds away
+              from helping your restaurant <strong>sell more.</strong>
             </h2>
 
-            <div className="notice-steps" aria-label="Como funciona o contato">
+            <div className="notice-steps" aria-label="How the contact process works">
               <article className="notice-card reveal-on-scroll">
                 <span className="notice-number">1</span>
                 <div>
-                  <h3>Complete o formulario</h3>
+                  <h3>Complete the form</h3>
                   <p>
-                    <strong>Forneca suas informacoes</strong> no formulario ao
-                    lado. Garantimos a seguranca total de seus dados. Serao usados
-                    apenas para contato.
+                    <strong>Share your information</strong> in the form beside
+                    this section. Your data is kept safe and will only be used
+                    for contact.
                   </p>
                 </div>
               </article>
@@ -452,62 +452,62 @@ function App() {
               <article className="notice-card reveal-on-scroll">
                 <span className="notice-number">2</span>
                 <div>
-                  <h3>Receba uma ligacao personalizada</h3>
+                  <h3>Get a personalized call</h3>
                   <p>
-                    Em um prazo de <strong>ate 5 minutos</strong> em horario
-                    comercial, um dos nossos especialistas{' '}
-                    <strong>entrara em contato diretamente</strong> para agendar a
-                    reuniao mais importante com voce.
+                    Within <strong>up to 5 minutes</strong> during business
+                    hours, one of our specialists will{' '}
+                    <strong>contact you directly</strong> to schedule the most
+                    important meeting with you.
                   </p>
                 </div>
               </article>
             </div>
           </div>
 
-          <form className="lead-form" aria-label="Formulario de diagnostico">
+          <form className="lead-form" aria-label="Diagnosis form">
             <label className="field-compact">
-              <span className="sr-only">Nome</span>
-              <input type="text" name="name" placeholder="Seu nome" />
+              <span className="sr-only">Name</span>
+              <input type="text" name="name" placeholder="Your name" />
             </label>
             <label className="field-compact">
               <span className="sr-only">Email</span>
-              <input type="email" name="email" placeholder="Seu melhor e-mail" />
+              <input type="email" name="email" placeholder="Your best email" />
             </label>
             <label className="field-compact">
-              <span className="sr-only">Numero</span>
+              <span className="sr-only">Phone number</span>
               <span className="phone-field">
                 <span aria-hidden="true">+61</span>
-                <input type="tel" name="phone" placeholder="WhatsApp com DDD" />
+                <input type="tel" name="phone" placeholder="WhatsApp number" />
               </span>
             </label>
             <label className="field-compact">
-              <span className="sr-only">Nome da empresa</span>
-              <input type="text" name="company" placeholder="Nome da empresa" />
+              <span className="sr-only">Company name</span>
+              <input type="text" name="company" placeholder="Company name" />
             </label>
             <label className="full">
-              Qual o seu faturamento mensal?
+              What is your monthly revenue?
               <select name="revenue" defaultValue="">
                 <option value="" disabled>
-                  Selecione o faturamento
+                  Select your revenue
                 </option>
-                <option>Ate AUD 30k</option>
-                <option>AUD 30k a AUD 80k</option>
-                <option>AUD 80k a AUD 150k</option>
-                <option>Acima de AUD 150k</option>
+                <option>Up to AUD 30k</option>
+                <option>AUD 30k to AUD 80k</option>
+                <option>AUD 80k to AUD 150k</option>
+                <option>Above AUD 150k</option>
               </select>
             </label>
             <button className="primary-action full" type="submit">
-              Receber mais informacoes
+              Get more information
             </button>
         </form>
         </div>
       </section>
 
-      <section className="testimonials" aria-labelledby="depoimentos-title">
+      <section className="testimonials" aria-labelledby="testimonials-title">
         <div className="section-inner">
           <div className="section-heading reveal-on-scroll">
-            <p className="eyebrow">Depoimentos</p>
-            <h2 id="depoimentos-title">Resultados contados por quem vive o restaurante.</h2>
+            <p className="eyebrow">Testimonials</p>
+            <h2 id="testimonials-title">Results shared by people who live the restaurant business.</h2>
           </div>
 
           <div className="video-grid">
@@ -534,7 +534,7 @@ function App() {
                 <button
                   className="short-volume"
                   type="button"
-                  aria-label={mutedShorts[index] ? 'Ativar som' : 'Desativar som'}
+                  aria-label={mutedShorts[index] ? 'Turn sound on' : 'Turn sound off'}
                   onClick={(event) => toggleShortVolume(event, index)}
                 >
                   {mutedShorts[index] ? (
@@ -549,35 +549,35 @@ function App() {
         </div>
       </section>
 
-      <section className="about" id="quem-somos">
+      <section className="about" id="about-us">
         <div className="section-inner about-inner">
           <div className="about-image reveal-on-scroll" aria-hidden="true" />
           <div className="section-copy reveal-on-scroll">
-            <p className="eyebrow">Quem somos</p>
-            <h2>Lider em marketing gastronomico para marcas que precisam vender todos os dias.</h2>
+            <p className="eyebrow">About us</p>
+            <h2>A leader in restaurant marketing for brands that need to sell every day.</h2>
             <p>
-              Somos uma agencia especializada em restaurantes, cafes e operacoes
-              de delivery. Unimos leitura de mercado, criativos de alta conversao
-              e gestao de campanhas para criar demanda consistente.
+              We are an agency specialized in restaurants, cafes, and delivery
+              operations. We combine market intelligence, high-converting
+              creatives, and campaign management to create consistent demand.
             </p>
             <div className="proof-row">
-              <span><Star aria-hidden="true" size={18} /> Oferta</span>
+              <span><Star aria-hidden="true" size={18} /> Offer</span>
               <span><TrendingUp aria-hidden="true" size={18} /> Performance</span>
-              <span><Utensils aria-hidden="true" size={18} /> Gastronomia</span>
+              <span><Utensils aria-hidden="true" size={18} /> Food service</span>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="services" id="servicos">
+      <section className="services" id="services">
         <div className="section-inner">
           <div className="section-heading services-heading reveal-on-scroll">
-            <p className="eyebrow">O que fazemos?</p>
-            <h2>Um sistema de crescimento para o restaurante aparecer, converter e reter.</h2>
+            <p className="eyebrow">What do we do?</p>
+            <h2>A growth system to help your restaurant get seen, convert, and retain customers.</h2>
           </div>
 
-          <div className="service-carousel" aria-label="Servicos BrandUp">
-            <button className="carousel-nav carousel-nav-left" type="button" onClick={() => moveCarousel('left')} aria-label="Servico anterior">
+          <div className="service-carousel" aria-label="BrandUp services">
+            <button className="carousel-nav carousel-nav-left" type="button" onClick={() => moveCarousel('left')} aria-label="Previous service">
               <ChevronLeft aria-hidden="true" size={24} />
             </button>
             <div className="service-track" ref={servicesTrack}>
@@ -589,7 +589,7 @@ function App() {
                 </article>
               ))}
             </div>
-            <button className="carousel-nav carousel-nav-right" type="button" onClick={() => moveCarousel('right')} aria-label="Proximo servico">
+            <button className="carousel-nav carousel-nav-right" type="button" onClick={() => moveCarousel('right')} aria-label="Next service">
               <ChevronRight aria-hidden="true" size={24} />
             </button>
           </div>
@@ -599,14 +599,15 @@ function App() {
       <section className="team">
         <div className="section-inner team-inner">
           <div className="section-copy team-copy">
-            <p className="eyebrow reveal-on-scroll">Receba um time exclusivo</p>
-            <h2 className="reveal-on-scroll">Estrategia, criativos e performance trabalhando como uma extensao da sua operacao.</h2>
+            <p className="eyebrow reveal-on-scroll">Get an exclusive team</p>
+            <h2 className="reveal-on-scroll">Strategy, creatives, and performance working as an extension of your operation.</h2>
             <p className="reveal-on-scroll">
-              Voce fala com um time que entende cardapio, margem, horario de pico,
-              reservas e recorrencia. Menos campanha solta, mais rotina comercial.
+              You work with a team that understands menus, margins, peak hours,
+              reservations, and recurrence. Fewer scattered campaigns, more
+              commercial rhythm.
             </p>
             <button className="primary-action team-cta reveal-on-scroll" type="button" onClick={scrollToForm}>
-              Receber mais informacoes
+              Get more information
             </button>
           </div>
         </div>
@@ -615,8 +616,8 @@ function App() {
       <section className="faq" aria-labelledby="faq-title">
         <div className="section-inner">
           <div className="section-heading">
-            <p className="eyebrow">Perguntas frequentes</p>
-            <h2 id="faq-title">O que restaurantes costumam perguntar antes de comecar.</h2>
+            <p className="eyebrow">Frequently asked questions</p>
+            <h2 id="faq-title">What restaurants usually ask before getting started.</h2>
           </div>
           <div className="faq-list">
             {faqs.map((item) => (
@@ -632,17 +633,17 @@ function App() {
       <footer>
         <div className="section-inner footer-inner">
           <div>
-            <a className="brand" href="#top" aria-label="BrandUp inicio">
+            <a className="brand" href="#top" aria-label="BrandUp home">
               <span>Brand</span>Up
             </a>
-            <p>Agencia de marketing focada em restaurantes na Australia.</p>
-            <p className="legal">CNPJ: 00.000.000/0001-00</p>
+            <p>Marketing agency focused on restaurants in Australia.</p>
+            <p className="legal">ABN: 00 000 000 000</p>
           </div>
-          <div className="socials" aria-label="Redes sociais">
+          <div className="socials" aria-label="Social media">
             <a href="https://www.instagram.com/brandup.aus/" aria-label="Instagram BrandUp" target="_blank" rel="noreferrer">
               <img src="https://cdn.simpleicons.org/instagram/ffffff" alt="" aria-hidden="true" />
             </a>
-            <a href="https://wa.me/?text=Quero%20receber%20mais%20informacoes%20sobre%20a%20BrandUp" aria-label="WhatsApp BrandUp" target="_blank" rel="noreferrer">
+            <a href="https://wa.me/?text=I%20want%20to%20receive%20more%20information%20about%20BrandUp" aria-label="WhatsApp BrandUp" target="_blank" rel="noreferrer">
               <img src="https://cdn.simpleicons.org/whatsapp/ffffff" alt="" aria-hidden="true" />
             </a>
           </div>
