@@ -392,13 +392,12 @@ function App() {
           </div>
 
           <div className="hero-content">
-            <p className="eyebrow">
-              Marketing gastronomico para restaurantes na Australia
-            </p>
-            <h1>Mesas cheias, delivery girando e campanhas que pagam a conta.</h1>
+            <h1>How restaurants are generating over $250k per month within 90 days by investing in marketing with the best consultancy.</h1>
             <p className="hero-copy">
-              A BrandUp cria aquisicao local, anuncios e funis para restaurantes
-              que querem transformar atencao em faturamento previsivel.
+              The best digital marketing and online presence strategies to put
+              you at the top when customers search, compare, and decide where to
+              eat. We have already generated over 10 million in sales for our
+              clients.
             </p>
             <div className="hero-actions">
               <button className="primary-action" type="button" onClick={scrollToForm}>
