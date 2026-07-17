@@ -79,27 +79,32 @@ const services = [
   {
     icon: Search,
     title: 'Local diagnosis',
-    text: 'We map competitors, average ticket, peak hours, and high-intent search opportunities on Google.',
+    text: 'We audit competitors, average ticket, prime hours, and high-intent Google demand around your venue.',
   },
   {
     icon: Clapperboard,
     title: 'Cravings-driven creatives',
-    text: 'Scripts, offers, and ads with visual appeal for delivery, reservations, and dine-in traffic.',
+    text: 'Campaign concepts, offers, and visuals designed to elevate delivery, bookings, and dine-in demand.',
   },
   {
     icon: Target,
     title: 'Paid media',
-    text: 'Campaigns for Meta, Google, and remarketing focused on bookings, orders, and repeat purchases.',
+    text: 'Meta, Google, and remarketing campaigns built to scale bookings, orders, and repeat visits.',
   },
   {
     icon: MessageCircle,
     title: 'WhatsApp funnel',
-    text: 'Lead capture, qualification, and follow-up to turn clicks into occupied tables.',
+    text: 'Lead capture, qualification, and follow-up flows that turn interest into booked tables.',
+  },
+  {
+    icon: Utensils,
+    title: 'Digital menu',
+    text: 'Refined digital menus that spotlight signature items and guide guests toward higher-value orders.',
   },
   {
     icon: BarChart3,
     title: 'Clear reporting',
-    text: 'Weekly indicators for revenue, cost per lead, reservations, orders, and return by channel.',
+    text: 'Executive reporting on revenue, cost per lead, reservations, orders, and channel-level return.',
   },
 ]
 
