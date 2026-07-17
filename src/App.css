@@ -228,7 +228,7 @@ p {
   color: var(--text-strong);
   font-size: 1.45rem;
   font-weight: 900;
-  line-height: 1.1;
+  line-height: 0.85;
   font-variant-numeric: tabular-nums;
   --number-flow-mask-height: 0.18em;
   --number-flow-mask-width: 0.35em;

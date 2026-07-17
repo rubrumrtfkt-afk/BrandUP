@@ -155,6 +155,32 @@ type HeroStatItemProps = {
   label: string
 }
 
+const SHUFFLE_STEPS = 5
+const SHUFFLE_STEP_MS = 130
+const SHUFFLE_SPIN_MS = 170
+const FINAL_SPIN_MS = 980
+
+const getDigitCount = (number: number) =>
+  String(Math.abs(Math.floor(number))).length
+
+const randomWithSameDigits = (target: number, exclude = target) => {
+  const digits = getDigitCount(target)
+  const min = digits === 1 ? 0 : 10 ** (digits - 1)
+  const max = 10 ** digits - 1
+
+  if (min === max) {
+    return min
+  }
+
+  let random = exclude
+
+  while (random === exclude) {
+    random = Math.floor(Math.random() * (max - min + 1)) + min
+  }
+
+  return random
+}
+
 function HeroStatItem({
   value,
   prefix,
@@ -162,19 +188,35 @@ function HeroStatItem({
   delay = 0,
   label,
 }: HeroStatItemProps) {
-  const [animatedValue, setAnimatedValue] = useState(0)
+  const [animatedValue, setAnimatedValue] = useState(() =>
+    randomWithSameDigits(value),
+  )
+  const [spinDuration, setSpinDuration] = useState(SHUFFLE_SPIN_MS)
 
   useEffect(() => {
-    let timeoutId = 0
-    const frameId = window.requestAnimationFrame(() => {
-      timeoutId = window.setTimeout(() => {
-        setAnimatedValue(value)
-      }, delay)
-    })
+    let cancelled = false
+    const timeouts: number[] = []
+
+    for (let step = 0; step < SHUFFLE_STEPS; step += 1) {
+      timeouts.push(
+        window.setTimeout(() => {
+          if (cancelled) {
+            return
+          }
+
+          const isFinalStep = step === SHUFFLE_STEPS - 1
+
+          setSpinDuration(isFinalStep ? FINAL_SPIN_MS : SHUFFLE_SPIN_MS)
+          setAnimatedValue(
+            isFinalStep ? value : randomWithSameDigits(value),
+          )
+        }, delay + step * SHUFFLE_STEP_MS),
+      )
+    }
 
     return () => {
-      window.cancelAnimationFrame(frameId)
-      window.clearTimeout(timeoutId)
+      cancelled = true
+      timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId))
     }
   }, [value, delay])
 
@@ -185,10 +227,16 @@ function HeroStatItem({
         className="hero-stat-number"
         plugins={[continuous]}
         prefix={prefix}
-        spinTiming={{ duration: 1400, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }}
+        spinTiming={{
+          duration: spinDuration,
+          easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
         suffix={suffix}
-        transformTiming={{ duration: 850, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }}
-        trend={() => 1}
+        transformTiming={{
+          duration: spinDuration * 0.65,
+          easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+        trend={0}
         value={animatedValue}
       />
       <span>{label}</span>
