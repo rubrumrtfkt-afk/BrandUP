@@ -393,8 +393,8 @@ function App() {
 
           <div className="hero-content">
             <h1>
-              How restaurants are generating <strong>over $250k per month</strong>{' '}
-              within 90 days by investing in marketing.
+              HOW RESTAURANTS ARE GENERATING <strong>OVER $250K PER MONTH</strong>{' '}
+              WITHIN 90 DAYS BY INVESTING IN MARKETING.
             </h1>
             <p className="hero-copy">
               The best digital marketing and online presence strategies to put
