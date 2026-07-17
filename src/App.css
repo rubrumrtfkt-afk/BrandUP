@@ -230,8 +230,15 @@ p {
   font-weight: 900;
   line-height: 0.85;
   font-variant-numeric: tabular-nums;
-  --number-flow-mask-height: 0.18em;
-  --number-flow-mask-width: 0.35em;
+  filter: blur(0);
+  transition: filter 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  --number-flow-mask-height: 0.16em;
+  --number-flow-mask-width: 0.3em;
+}
+
+.hero-stat-number.is-animating {
+  filter: blur(2.8px);
+  transition: filter 80ms ease-out;
 }
 
 .hero-stats span {
