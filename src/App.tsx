@@ -472,10 +472,20 @@ function App() {
             <a className="brand" href="#top" aria-label="BrandUp home">
               <span>Brand</span>Up
             </a>
-            <button className="nav-cta" type="button" onClick={scrollToForm}>
-              <span>Diagnosis</span>
-              <ArrowRight aria-hidden="true" size={18} />
-            </button>
+            <div className="nav-actions">
+              <div className="socials" aria-label="Social media">
+                <a href="https://www.instagram.com/brandup.aus/" aria-label="Instagram BrandUp" target="_blank" rel="noreferrer">
+                  <img src="https://cdn.simpleicons.org/instagram/ffffff" alt="" aria-hidden="true" />
+                </a>
+                <a href="https://wa.me/?text=I%20want%20to%20receive%20more%20information%20about%20BrandUp" aria-label="WhatsApp BrandUp" target="_blank" rel="noreferrer">
+                  <img src="https://cdn.simpleicons.org/whatsapp/ffffff" alt="" aria-hidden="true" />
+                </a>
+              </div>
+              <button className="nav-cta" type="button" onClick={scrollToForm}>
+                <span>Diagnosis</span>
+                <ArrowRight aria-hidden="true" size={18} />
+              </button>
+            </div>
           </div>
 
           <div className="hero-content">

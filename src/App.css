@@ -58,6 +58,12 @@ main {
   gap: 18px;
 }
 
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .brand {
   color: var(--text-strong);
   font-size: 1.2rem;
