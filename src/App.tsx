@@ -128,7 +128,7 @@ const faqs = [
   {
     question: 'Does BrandUp work only with restaurants in Australia?',
     answer:
-      'Our main focus is Australia, with strategies for restaurants, cafes, pizzerias, bars, and dark kitchens that need predictable growth.',
+      'Our main focus is Australia, with strategies for restaurants, coffee shops, pizzerias, bars, and dark kitchens that need predictable growth.',
   },
   {
     question: 'Do I need an in-house marketing team?',
@@ -654,7 +654,7 @@ function App() {
             <p className="eyebrow">About us</p>
             <h2>A leader in restaurant marketing for brands that need to sell every day.</h2>
             <p>
-              We are an agency specialized in restaurants, cafes, and delivery
+              We are an agency specialized in restaurants, coffee shops, and delivery
               operations. We combine market intelligence, high-converting
               creatives, and campaign management to create consistent demand.
             </p>
