@@ -155,9 +155,12 @@ type HeroStatItemProps = {
   label: string
 }
 
-const SHUFFLE_STEPS = 6
+const SHUFFLE_STEPS = 8
 const SHUFFLE_SETTLE_EASING =
   'linear(0, 0.0033, 0.0141, 0.0326, 0.0588, 0.0927, 0.1343, 0.1835, 0.2399, 0.3032, 0.3728, 0.4479, 0.5274, 0.6101, 0.6948, 0.7804, 0.8654, 0.9488, 1.029, 1.104, 1.174, 1.237, 1.292, 1.34, 1.379, 1.41, 1.433, 1.447, 1.453, 1.452, 1.444, 1.429, 1.409, 1.384, 1.356, 1.325, 1.292, 1.259, 1.225, 1.192, 1.16, 1.131, 1.103, 1.079, 1.057, 1.039, 1.023, 1.01, 1, 0.992, 0.986, 0.982, 0.98, 0.98, 0.981, 0.983, 0.986, 0.989, 0.993, 0.997, 1)'
+const canAnimateNumbers = () =>
+  typeof window !== 'undefined'
+  && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const getDigitCount = (number: number) =>
   String(Math.abs(Math.floor(number))).length
@@ -187,21 +190,30 @@ function HeroStatItem({
   delay = 0,
   label,
 }: HeroStatItemProps) {
-  const [animatedValue, setAnimatedValue] = useState(() =>
-    randomWithSameDigits(value),
-  )
+  const [animatedValue, setAnimatedValue] = useState(() => {
+    if (!canAnimateNumbers()) {
+      return value
+    }
+
+    return randomWithSameDigits(value)
+  })
   const [isSettling, setIsSettling] = useState(false)
 
   useEffect(() => {
+    if (!canAnimateNumbers()) {
+      setAnimatedValue(value)
+      return undefined
+    }
+
     let cancelled = false
     const timeouts: number[] = []
-    let elapsed = delay
+    let elapsed = delay + 260
     let previous = animatedValue
 
     for (let step = 0; step < SHUFFLE_STEPS; step += 1) {
       const isFinalStep = step === SHUFFLE_STEPS - 1
       const progress = step / (SHUFFLE_STEPS - 1)
-      const gap = 90 + progress * progress * 240
+      const gap = 70 + progress * progress * 170
 
       elapsed += gap
 
@@ -228,10 +240,10 @@ function HeroStatItem({
     }
   }, [value, delay])
 
-  const spinDuration = isSettling ? 950 : 260
+  const spinDuration = isSettling ? 900 : 220
 
   return (
-    <div>
+    <div className="hero-stat-card" style={{ '--stat-delay': `${delay}ms` } as CSSProperties}>
       <NumberFlow
         aria-label={`${prefix ?? ''}${value}${suffix ?? ''}`}
         className="hero-stat-number"
