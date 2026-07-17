@@ -644,6 +644,10 @@ iframe.short-player {
   margin-inline: auto;
 }
 
+.services {
+  overflow: hidden;
+}
+
 .carousel-controls button,
 .carousel-nav,
 .socials a {
@@ -664,8 +668,11 @@ iframe.short-player {
 
 .service-carousel {
   position: relative;
+  width: 100vw;
+  box-sizing: border-box;
+  margin-inline: calc(50% - 50vw);
   overflow: hidden;
-  padding-inline: 66px;
+  padding-inline: 0;
 }
 
 .service-track {
@@ -693,8 +700,8 @@ iframe.short-player {
 }
 
 .service-card {
-  width: min(860px, calc(100vw - 168px));
-  flex: 0 0 min(860px, calc(100vw - 168px));
+  width: clamp(390px, 46vw, 640px);
+  flex: 0 0 clamp(390px, 46vw, 640px);
   aspect-ratio: 16 / 9;
   min-height: 0;
   display: grid;
@@ -717,12 +724,12 @@ iframe.short-player {
 }
 
 .carousel-nav-left {
-  left: 0;
+  left: clamp(18px, 7vw, 112px);
   transform: translateY(-50%);
 }
 
 .carousel-nav-right {
-  right: 0;
+  right: clamp(18px, 7vw, 112px);
   transform: translateY(-50%);
 }
 
@@ -872,7 +879,7 @@ footer p {
   }
 
   .service-carousel {
-    padding-inline: 54px;
+    padding-inline: 0;
   }
 }
 
