@@ -494,9 +494,6 @@ function App() {
                 Grow my restaurant
                 <ArrowRight aria-hidden="true" size={19} />
               </button>
-              <a className="secondary-action" href="#services">
-                View strategy
-              </a>
             </div>
           </div>
 
