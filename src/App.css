@@ -219,15 +219,19 @@ p {
   background: rgba(9, 6, 12, 0.72);
 }
 
-.hero-stats strong,
-.hero-stats span {
+.hero-stats span,
+.hero-stat-number {
   display: block;
 }
 
-.hero-stats strong {
+.hero-stat-number {
   color: var(--text-strong);
   font-size: 1.45rem;
+  font-weight: 900;
   line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  --number-flow-mask-height: 0.18em;
+  --number-flow-mask-width: 0.35em;
 }
 
 .hero-stats span {
