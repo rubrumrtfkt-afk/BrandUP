@@ -660,33 +660,39 @@ iframe.short-player {
 
 .service-carousel {
   position: relative;
-  display: grid;
-  place-items: center;
+  overflow: hidden;
   padding-inline: 66px;
 }
 
 .service-track {
-  width: min(860px, 100%);
-  margin-inline: auto;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 100%;
-  gap: 18px;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scroll-snap-type: inline mandatory;
-  scroll-padding-inline: 0;
-  scrollbar-width: none;
+  --service-belt-duration: 30s;
+  display: flex;
+  width: max-content;
+  animation: serviceBelt var(--service-belt-duration) linear infinite;
+  will-change: transform;
 }
 
-.service-track::-webkit-scrollbar {
-  display: none;
+.service-belt-group {
+  display: flex;
+  gap: 18px;
+  padding-right: 18px;
+}
+
+@keyframes serviceBelt {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
 }
 
 .service-card {
+  width: min(860px, calc(100vw - 168px));
+  flex: 0 0 min(860px, calc(100vw - 168px));
   aspect-ratio: 16 / 9;
   min-height: 0;
-  scroll-snap-align: center;
   display: grid;
   align-content: center;
   gap: 18px;
@@ -915,11 +921,12 @@ footer p {
   }
 
   .service-track {
-    width: 100%;
-    grid-auto-columns: 100%;
+    width: max-content;
   }
 
   .service-card {
+    width: calc(100vw - 36px);
+    flex-basis: calc(100vw - 36px);
     gap: 12px;
     padding: 20px;
   }

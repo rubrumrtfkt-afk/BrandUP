@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { MouseEvent } from 'react'
+import type { CSSProperties, MouseEvent } from 'react'
 import {
   ArrowRight,
   BarChart3,
@@ -147,57 +147,11 @@ const faqs = [
 ]
 
 function App() {
-  const servicesTrack = useRef<HTMLDivElement>(null)
-  const serviceCarouselIndex = useRef(0)
   const shortsPlayers = useRef<Array<YouTubePlayer | null>>([])
   const shortsRefs = useRef<Array<HTMLDivElement | null>>([])
   const [mutedShorts, setMutedShorts] = useState(() => testimonials.map(() => true))
   const [playingShorts, setPlayingShorts] = useState(() => testimonials.map(() => false))
-
-  const getServiceSlideDistance = () => {
-    const track = servicesTrack.current
-
-    if (!track) {
-      return 0
-    }
-
-    const card = track.querySelector<HTMLElement>('.service-card')
-    const gap = Number.parseFloat(getComputedStyle(track).columnGap || '0')
-
-    return (card?.offsetWidth ?? track.clientWidth) + gap
-  }
-
-  const scrollServiceCarouselTo = (
-    index: number,
-    behavior: ScrollBehavior = 'smooth',
-  ) => {
-    const track = servicesTrack.current
-    const distance = getServiceSlideDistance()
-
-    if (!track || !distance) {
-      return
-    }
-
-    const nextIndex = (index + services.length) % services.length
-    serviceCarouselIndex.current = nextIndex
-
-    track.scrollTo({
-      left: nextIndex * distance,
-      behavior,
-    })
-  }
-
-  const advanceServiceCarousel = (direction: 'left' | 'right' = 'right') => {
-    const nextIndex =
-      serviceCarouselIndex.current + (direction === 'left' ? -1 : 1)
-    const isForwardLoop = nextIndex >= services.length
-    const isBackwardLoop = nextIndex < 0
-
-    scrollServiceCarouselTo(
-      isForwardLoop ? 0 : isBackwardLoop ? services.length - 1 : nextIndex,
-      isForwardLoop || isBackwardLoop ? 'auto' : 'smooth',
-    )
-  }
+  const [serviceBeltDuration, setServiceBeltDuration] = useState(30)
 
   useEffect(() => {
     const revealElements = Array.from(
@@ -250,16 +204,6 @@ function App() {
       }
       window.removeEventListener('scroll', requestRevealUpdate)
       window.removeEventListener('resize', requestRevealUpdate)
-    }
-  }, [])
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      advanceServiceCarousel('right')
-    }, 3800)
-
-    return () => {
-      window.clearInterval(interval)
     }
   }, [])
 
@@ -323,7 +267,13 @@ function App() {
   }
 
   const moveCarousel = (direction: 'left' | 'right') => {
-    advanceServiceCarousel(direction)
+    setServiceBeltDuration((currentDuration) => {
+      const nextDuration = direction === 'right'
+        ? currentDuration - 4
+        : currentDuration + 4
+
+      return Math.min(Math.max(nextDuration, 14), 46)
+    })
   }
 
   const toggleShortPlayback = (index: number) => {
@@ -580,19 +530,30 @@ function App() {
           </div>
 
           <div className="service-carousel" aria-label="BrandUp services">
-            <button className="carousel-nav carousel-nav-left" type="button" onClick={() => moveCarousel('left')} aria-label="Previous service">
+            <button className="carousel-nav carousel-nav-left" type="button" onClick={() => moveCarousel('left')} aria-label="Slow down services">
               <ChevronLeft aria-hidden="true" size={24} />
             </button>
-            <div className="service-track" ref={servicesTrack}>
-              {services.map(({ icon: Icon, title, text }) => (
-                <article className="service-card" key={title}>
-                  <Icon aria-hidden="true" size={28} />
-                  <h3>{title}</h3>
-                  <p>{text}</p>
-                </article>
+            <div
+              className="service-track"
+              style={{ '--service-belt-duration': `${serviceBeltDuration}s` } as CSSProperties}
+            >
+              {[0, 1].map((groupIndex) => (
+                <div
+                  className="service-belt-group"
+                  key={groupIndex}
+                  aria-hidden={groupIndex === 1}
+                >
+                  {services.map(({ icon: Icon, title, text }) => (
+                    <article className="service-card" key={`${groupIndex}-${title}`}>
+                      <Icon aria-hidden="true" size={28} />
+                      <h3>{title}</h3>
+                      <p>{text}</p>
+                    </article>
+                  ))}
+                </div>
               ))}
             </div>
-            <button className="carousel-nav carousel-nav-right" type="button" onClick={() => moveCarousel('right')} aria-label="Next service">
+            <button className="carousel-nav carousel-nav-right" type="button" onClick={() => moveCarousel('right')} aria-label="Speed up services">
               <ChevronRight aria-hidden="true" size={24} />
             </button>
           </div>
