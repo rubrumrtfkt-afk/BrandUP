@@ -496,8 +496,8 @@ function App() {
             <p className="hero-copy">
               The best digital marketing and online presence strategies to put
               you at the top when customers search, compare, and decide where to
-              eat. We have already generated over 10 million in sales for our
-              clients.
+              eat. We have already generated <strong>OVER 10 MILLION</strong>{' '}
+              in sales for our clients.
             </p>
             <div className="hero-actions">
               <button className="primary-action" type="button" onClick={scrollToForm}>
