@@ -585,10 +585,7 @@ function App() {
             </label>
             <label className="field-compact">
               <span className="sr-only">Phone number</span>
-              <span className="phone-field">
-                <span aria-hidden="true">+61</span>
-                <input type="tel" name="phone" placeholder="WhatsApp number" />
-              </span>
+              <input type="tel" name="phone" placeholder="WhatsApp number" />
             </label>
             <label className="field-compact">
               <span className="sr-only">Company name</span>
