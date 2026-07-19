@@ -48,6 +48,8 @@ declare global {
 }
 
 let youTubeApiPromise: Promise<void> | null = null
+const assetBaseUrl = import.meta.env.BASE_URL
+const heroImageUrl = `url("${assetBaseUrl}agnes-restaurant.png")`
 
 const loadYouTubeApi = () => {
   if (window.YT?.Player) {
@@ -78,37 +80,37 @@ const loadYouTubeApi = () => {
 const services = [
   {
     icon: Search,
-    image: '/service-local-diagnosis.png',
+    image: `${assetBaseUrl}service-local-diagnosis.png`,
     title: 'Local diagnosis',
     text: 'We audit competitors, average ticket, prime hours, and high-intent Google demand around your venue.',
   },
   {
     icon: Clapperboard,
-    image: '/service-creatives.png',
+    image: `${assetBaseUrl}service-creatives.png`,
     title: 'Cravings-driven creatives',
     text: 'Campaign concepts, offers, and visuals designed to elevate delivery, bookings, and dine-in demand.',
   },
   {
     icon: Target,
-    image: '/service-paid-media.png',
+    image: `${assetBaseUrl}service-paid-media.png`,
     title: 'Paid media',
     text: 'Meta, Google, and remarketing campaigns built to scale bookings, orders, and repeat visits.',
   },
   {
     icon: MessageCircle,
-    image: '/service-whatsapp-funnel.png',
+    image: `${assetBaseUrl}service-whatsapp-funnel.png`,
     title: 'WhatsApp funnel',
     text: 'Lead capture, qualification, and follow-up flows that turn interest into booked tables.',
   },
   {
     icon: Utensils,
-    image: '/service-digital-menu.png',
+    image: `${assetBaseUrl}service-digital-menu.png`,
     title: 'Digital menu',
     text: 'Refined digital menus that spotlight signature items and guide guests toward higher-value orders.',
   },
   {
     icon: BarChart3,
-    image: '/service-reporting.png',
+    image: `${assetBaseUrl}service-reporting.png`,
     title: 'Clear reporting',
     text: 'Executive reporting on revenue, cost per lead, reservations, orders, and channel-level return.',
   },
@@ -472,7 +474,11 @@ function App() {
 
   return (
     <main>
-      <section className="hero" aria-label="BrandUp">
+      <section
+        className="hero"
+        aria-label="BrandUp"
+        style={{ '--hero-image-url': heroImageUrl } as CSSProperties}
+      >
         <div className="section-inner hero-inner">
           <div className="nav">
             <a className="brand" href="#top" aria-label="BrandUp home">

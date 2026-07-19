@@ -26,7 +26,7 @@ main {
   background:
     linear-gradient(90deg, rgba(9, 6, 12, 0.92) 0%, rgba(9, 6, 12, 0.72) 48%, rgba(9, 6, 12, 0.24) 100%),
     linear-gradient(180deg, rgba(9, 6, 12, 0.12) 0%, #09060c 100%),
-    url('/agnes-restaurant.png') center right / cover;
+    var(--hero-image-url) center right / cover;
 }
 
 .hero::after {
@@ -871,7 +871,7 @@ footer p {
   .hero::before {
     background:
       linear-gradient(180deg, rgba(9, 6, 12, 0.78) 0%, #09060c 100%),
-      url('/agnes-restaurant.png') center / cover;
+      var(--hero-image-url) center / cover;
   }
 
   .nav-cta span {
