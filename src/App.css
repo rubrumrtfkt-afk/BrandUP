@@ -713,6 +713,7 @@ iframe.short-player {
 }
 
 .service-card {
+  position: relative;
   width: clamp(390px, 46vw, 640px);
   flex: 0 0 clamp(390px, 46vw, 640px);
   aspect-ratio: 16 / 9;
@@ -723,9 +724,27 @@ iframe.short-player {
   padding: clamp(24px, 4vw, 46px);
   border: 1px solid var(--line);
   border-radius: 8px;
+  overflow: hidden;
   background:
-    linear-gradient(145deg, rgba(146, 50, 234, 0.18), rgba(138, 233, 221, 0.04)),
-      rgba(255, 255, 255, 0.05);
+    linear-gradient(145deg, rgba(9, 6, 12, 0.76), rgba(9, 6, 12, 0.28)),
+    linear-gradient(180deg, rgba(9, 6, 12, 0.08), rgba(9, 6, 12, 0.82)),
+    var(--service-card-image) center / cover no-repeat;
+}
+
+.service-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top right, rgba(138, 233, 221, 0.14), transparent 34%),
+    radial-gradient(circle at bottom left, rgba(146, 50, 234, 0.18), transparent 38%);
+  pointer-events: none;
+}
+
+.service-card > * {
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.38);
 }
 
 .carousel-nav {
