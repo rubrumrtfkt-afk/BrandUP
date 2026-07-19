@@ -16,6 +16,10 @@ main {
   min-height: 92svh;
   padding: 24px clamp(18px, 5vw, 72px) 32px;
   isolation: isolate;
+  background-color: #09060c;
+  background-position: center right;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .hero::before {
@@ -25,8 +29,7 @@ main {
   z-index: -2;
   background:
     linear-gradient(90deg, rgba(9, 6, 12, 0.92) 0%, rgba(9, 6, 12, 0.72) 48%, rgba(9, 6, 12, 0.24) 100%),
-    linear-gradient(180deg, rgba(9, 6, 12, 0.12) 0%, #09060c 100%),
-    var(--hero-image-url) center right / cover;
+    linear-gradient(180deg, rgba(9, 6, 12, 0.12) 0%, #09060c 100%);
 }
 
 .hero::after {
@@ -862,6 +865,7 @@ footer p {
 @media (max-width: 900px) {
   .hero {
     min-height: 88svh;
+    background-position: center;
   }
 
   .hero-inner {
@@ -870,8 +874,7 @@ footer p {
 
   .hero::before {
     background:
-      linear-gradient(180deg, rgba(9, 6, 12, 0.78) 0%, #09060c 100%),
-      var(--hero-image-url) center / cover;
+      linear-gradient(180deg, rgba(9, 6, 12, 0.78) 0%, #09060c 100%);
   }
 
   .nav-cta span {

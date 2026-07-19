@@ -49,7 +49,7 @@ declare global {
 
 let youTubeApiPromise: Promise<void> | null = null
 const assetBaseUrl = import.meta.env.BASE_URL
-const heroImageUrl = `url("${assetBaseUrl}agnes-restaurant.png")`
+const heroImageUrl = `${assetBaseUrl}agnes-restaurant.png`
 
 const loadYouTubeApi = () => {
   if (window.YT?.Player) {
@@ -477,7 +477,9 @@ function App() {
       <section
         className="hero"
         aria-label="BrandUp"
-        style={{ '--hero-image-url': heroImageUrl } as CSSProperties}
+        style={{
+          backgroundImage: `url("${heroImageUrl}")`,
+        }}
       >
         <div className="section-inner hero-inner">
           <div className="nav">
