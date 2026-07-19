@@ -707,7 +707,9 @@ function App() {
                     <article
                       className="service-card"
                       key={`${groupIndex}-${title}`}
-                      style={{ '--service-card-image': `url("${image}")` } as CSSProperties}
+                      style={{
+                        backgroundImage: `linear-gradient(145deg, rgba(9, 6, 12, 0.76), rgba(9, 6, 12, 0.28)), linear-gradient(180deg, rgba(9, 6, 12, 0.08), rgba(9, 6, 12, 0.82)), url("${image}")`,
+                      }}
                     >
                       <Icon aria-hidden="true" size={28} />
                       <h3>{title}</h3>
