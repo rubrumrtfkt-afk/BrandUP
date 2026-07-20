@@ -488,6 +488,9 @@ function App() {
             </a>
             <div className="nav-actions">
               <div className="socials" aria-label="Social media">
+                <a href="https://www.facebook.com/profile.php?id=61591164172060&locale=pt_BR" aria-label="Facebook BrandUp" target="_blank" rel="noreferrer">
+                  <img src="https://cdn.simpleicons.org/facebook/ffffff" alt="" aria-hidden="true" />
+                </a>
                 <a href="https://www.instagram.com/brandup.aus/" aria-label="Instagram BrandUp" target="_blank" rel="noreferrer">
                   <img src="https://cdn.simpleicons.org/instagram/ffffff" alt="" aria-hidden="true" />
                 </a>
@@ -778,6 +781,9 @@ function App() {
             <p className="legal">ABN: 00 000 000 000</p>
           </div>
           <div className="socials" aria-label="Social media">
+            <a href="https://www.facebook.com/profile.php?id=61591164172060&locale=pt_BR" aria-label="Facebook BrandUp" target="_blank" rel="noreferrer">
+              <img src="https://cdn.simpleicons.org/facebook/ffffff" alt="" aria-hidden="true" />
+            </a>
             <a href="https://www.instagram.com/brandup.aus/" aria-label="Instagram BrandUp" target="_blank" rel="noreferrer">
               <img src="https://cdn.simpleicons.org/instagram/ffffff" alt="" aria-hidden="true" />
             </a>
