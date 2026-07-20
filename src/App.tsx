@@ -59,10 +59,10 @@ function BrandIcon() {
         stroke="#9232ea"
         strokeWidth="2"
         strokeLinejoin="round"
-        fill="none"
+        fill="#9232ea"
       />
-      <path d="M20 13 L26 22 L14 22 Z" fill="#9232ea" />
-      <rect x="17.5" y="21" width="5" height="9" rx="2.5" fill="#9232ea" />
+      <path d="M20 13 L26 22 L14 22 Z" fill="#ffffff" />
+      <rect x="17.5" y="21" width="5" height="9" rx="2.5" fill="#ffffff" />
     </svg>
   )
 }
