@@ -51,6 +51,22 @@ let youTubeApiPromise: Promise<void> | null = null
 const assetBaseUrl = import.meta.env.BASE_URL
 const heroImageUrl = `${assetBaseUrl}agnes-restaurant.png`
 
+function BrandIcon() {
+  return (
+    <svg className="brand-icon" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+      <path
+        d="M20 5 L35 33 L5 33 Z"
+        stroke="#9232ea"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path d="M20 13 L26 22 L14 22 Z" fill="#9232ea" />
+      <rect x="17.5" y="21" width="5" height="9" rx="2.5" fill="#9232ea" />
+    </svg>
+  )
+}
+
 const loadYouTubeApi = () => {
   if (window.YT?.Player) {
     return Promise.resolve()
@@ -485,6 +501,7 @@ function App() {
           <div className="nav">
             <a className="brand" href="#top" aria-label="BrandUp home">
               <span>Brand</span>Up
+              <BrandIcon />
             </a>
             <div className="nav-actions">
               <div className="socials" aria-label="Social media">
@@ -776,6 +793,7 @@ function App() {
           <div>
             <a className="brand" href="#top" aria-label="BrandUp home">
               <span>Brand</span>Up
+              <BrandIcon />
             </a>
             <p>Marketing agency focused on restaurants in Australia.</p>
             <p className="legal">ABN: 00 000 000 000</p>
