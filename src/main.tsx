@@ -9,7 +9,10 @@ const isAdminRoute =
   url.searchParams.get('admin') === '1' ||
   window.location.hash.toLowerCase().startsWith('#/admin')
 
-if (/[?&#]type=(invite|recovery)(?:&|$)/i.test(window.location.href)) {
+if (
+  /[?&#]type=(invite|recovery)(?:&|$)/i.test(window.location.href) &&
+  (url.searchParams.has('token_hash') || window.location.hash.includes('access_token='))
+) {
   sessionStorage.setItem('brandup-password-setup', '1')
 }
 

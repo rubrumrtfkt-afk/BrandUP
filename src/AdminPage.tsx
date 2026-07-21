@@ -43,11 +43,16 @@ function AdminPage() {
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [isLoadingLeads, setIsLoadingLeads] = useState(false)
   const [isSigningIn, setIsSigningIn] = useState(false)
+  const [isAcceptingInvitation, setIsAcceptingInvitation] = useState(false)
   const [isSettingPassword, setIsSettingPassword] = useState(false)
+  const [pendingInviteToken] = useState(
+    () => new URL(window.location.href).searchParams.get('token_hash') ?? '',
+  )
   const [requiresPasswordSetup, setRequiresPasswordSetup] = useState(
     () => sessionStorage.getItem('brandup-password-setup') === '1',
   )
   const [loginError, setLoginError] = useState('')
+  const [invitationError, setInvitationError] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [dashboardError, setDashboardError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -189,6 +194,30 @@ function AdminPage() {
     await supabase.auth.signOut()
   }
 
+  const handleAcceptInvitation = async () => {
+    setIsAcceptingInvitation(true)
+    setInvitationError('')
+    sessionStorage.setItem('brandup-password-setup', '1')
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash: pendingInviteToken,
+      type: 'invite',
+    })
+
+    if (error || !data.session) {
+      sessionStorage.removeItem('brandup-password-setup')
+      setInvitationError(
+        'This invitation is no longer valid. Ask BrandUp to send a new invitation.',
+      )
+      setIsAcceptingInvitation(false)
+      return
+    }
+
+    setSessionEmail(data.session.user.email ?? null)
+    setRequiresPasswordSetup(true)
+    setIsAcceptingInvitation(false)
+  }
+
   const handleSetPassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsSettingPassword(true)
@@ -219,6 +248,7 @@ function AdminPage() {
     }
 
     sessionStorage.removeItem('brandup-password-setup')
+    window.history.replaceState({}, '', '/?admin=1')
     setRequiresPasswordSetup(false)
     setIsSettingPassword(false)
     await loadDashboard(data.user.id, data.user.email ?? null)
@@ -283,6 +313,45 @@ function AdminPage() {
       <main className="admin-state-screen" aria-busy="true">
         <LoaderCircle className="admin-spinner" aria-hidden="true" />
         <p>Checking secure access...</p>
+      </main>
+    )
+  }
+
+  if (pendingInviteToken && !sessionEmail) {
+    return (
+      <main className="admin-login-page">
+        <a className="admin-back-link" href="/">
+          <ArrowLeft aria-hidden="true" size={18} />
+          Back to website
+        </a>
+
+        <section className="admin-login-panel" aria-labelledby="admin-invite-title">
+          <div className="admin-login-brand">
+            <span>BrandUp</span>
+            <ShieldCheck aria-hidden="true" size={26} />
+          </div>
+          <p className="admin-eyebrow">Secure invitation</p>
+          <h1 id="admin-invite-title">Activate agency access</h1>
+          <p className="admin-login-copy">
+            Confirm this invitation to create your password and access the lead dashboard.
+          </p>
+          <button
+            className="admin-primary-button"
+            disabled={isAcceptingInvitation}
+            onClick={handleAcceptInvitation}
+            type="button"
+          >
+            {isAcceptingInvitation ? (
+              <LoaderCircle className="admin-spinner" aria-hidden="true" size={20} />
+            ) : (
+              <ShieldCheck aria-hidden="true" size={20} />
+            )}
+            {isAcceptingInvitation ? 'Confirming invitation...' : 'Accept secure invitation'}
+          </button>
+          <p className="admin-form-error" role="alert">
+            {invitationError}
+          </p>
+        </section>
       </main>
     )
   }
