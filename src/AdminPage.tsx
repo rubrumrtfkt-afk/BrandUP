@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import {
   ArrowLeft,
   Download,
+  KeyRound,
   LoaderCircle,
   LogOut,
   RefreshCw,
@@ -42,7 +43,12 @@ function AdminPage() {
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [isLoadingLeads, setIsLoadingLeads] = useState(false)
   const [isSigningIn, setIsSigningIn] = useState(false)
+  const [isSettingPassword, setIsSettingPassword] = useState(false)
+  const [requiresPasswordSetup, setRequiresPasswordSetup] = useState(
+    () => sessionStorage.getItem('brandup-password-setup') === '1',
+  )
   const [loginError, setLoginError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const [dashboardError, setDashboardError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [leads, setLeads] = useState<Lead[]>([])
@@ -91,7 +97,11 @@ function AdminPage() {
       } = await supabase.auth.getSession()
 
       if (session) {
-        await loadDashboard(session.user.id, session.user.email ?? null)
+        setSessionEmail(session.user.email ?? null)
+
+        if (sessionStorage.getItem('brandup-password-setup') !== '1') {
+          await loadDashboard(session.user.id, session.user.email ?? null)
+        }
       }
 
       setAuthReady(true)
@@ -111,6 +121,13 @@ function AdminPage() {
       }
 
       if (event === 'SIGNED_IN') {
+        if (sessionStorage.getItem('brandup-password-setup') === '1') {
+          setRequiresPasswordSetup(true)
+          setSessionEmail(session.user.email ?? null)
+          setAuthReady(true)
+          return
+        }
+
         void loadDashboard(session.user.id, session.user.email ?? null)
       }
     })
@@ -170,6 +187,41 @@ function AdminPage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
+  }
+
+  const handleSetPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setIsSettingPassword(true)
+    setPasswordError('')
+
+    const formData = new FormData(event.currentTarget)
+    const password = String(formData.get('password') ?? '')
+    const passwordConfirmation = String(formData.get('passwordConfirmation') ?? '')
+
+    if (password.length < 8) {
+      setPasswordError('Use at least 8 characters.')
+      setIsSettingPassword(false)
+      return
+    }
+
+    if (password !== passwordConfirmation) {
+      setPasswordError('The passwords do not match.')
+      setIsSettingPassword(false)
+      return
+    }
+
+    const { data, error } = await supabase.auth.updateUser({ password })
+
+    if (error || !data.user) {
+      setPasswordError('Your password could not be saved. Request a new invitation.')
+      setIsSettingPassword(false)
+      return
+    }
+
+    sessionStorage.removeItem('brandup-password-setup')
+    setRequiresPasswordSetup(false)
+    setIsSettingPassword(false)
+    await loadDashboard(data.user.id, data.user.email ?? null)
   }
 
   const refreshLeads = async () => {
@@ -286,6 +338,70 @@ function AdminPage() {
             </button>
             <p className="admin-form-error" role="alert">
               {loginError}
+            </p>
+          </form>
+        </section>
+      </main>
+    )
+  }
+
+  if (requiresPasswordSetup) {
+    return (
+      <main className="admin-login-page">
+        <a className="admin-back-link" href="/">
+          <ArrowLeft aria-hidden="true" size={18} />
+          Back to website
+        </a>
+
+        <section className="admin-login-panel" aria-labelledby="admin-password-title">
+          <div className="admin-login-brand">
+            <span>BrandUp</span>
+            <ShieldCheck aria-hidden="true" size={26} />
+          </div>
+          <p className="admin-eyebrow">Invitation accepted</p>
+          <h1 id="admin-password-title">Create your password</h1>
+          <p className="admin-login-copy">
+            Set a secure password for {sessionEmail} to finish activating your agency
+            account.
+          </p>
+
+          <form className="admin-login-form" onSubmit={handleSetPassword}>
+            <label>
+              New password
+              <input
+                autoComplete="new-password"
+                minLength={8}
+                name="password"
+                placeholder="At least 8 characters"
+                required
+                type="password"
+              />
+            </label>
+            <label>
+              Confirm password
+              <input
+                autoComplete="new-password"
+                minLength={8}
+                name="passwordConfirmation"
+                placeholder="Enter your password again"
+                required
+                type="password"
+              />
+            </label>
+            <button
+              className="admin-primary-button"
+              disabled={isSettingPassword}
+              type="submit"
+            >
+              {isSettingPassword ? (
+                <LoaderCircle className="admin-spinner" aria-hidden="true" size={20} />
+              ) : (
+                <KeyRound aria-hidden="true" size={20} />
+              )}
+              {isSettingPassword ? 'Saving password...' : 'Activate secure access'}
+            </button>
+            <p className="admin-form-error" role="alert">
+              {passwordError}
             </p>
           </form>
         </section>
