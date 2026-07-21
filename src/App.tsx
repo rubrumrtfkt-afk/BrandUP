@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, MouseEvent } from 'react'
+import type { CSSProperties, FormEvent, MouseEvent } from 'react'
 import NumberFlow, { continuous } from '@number-flow/react'
 import {
   ArrowRight,
@@ -16,6 +16,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react'
+import { supabase } from './lib/supabase'
 import './App.css'
 
 type YouTubePlayer = {
@@ -299,6 +300,43 @@ function App() {
   const [playingShorts, setPlayingShorts] = useState(() => testimonials.map(() => false))
   const [serviceBeltDuration, setServiceBeltDuration] = useState(30)
   const [heroStatsActive, setHeroStatsActive] = useState(false)
+  const [leadFormStatus, setLeadFormStatus] = useState<
+    'idle' | 'submitting' | 'success' | 'error'
+  >('idle')
+
+  const handleLeadSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const form = event.currentTarget
+    const formData = new FormData(form)
+
+    if (String(formData.get('website') ?? '')) {
+      form.reset()
+      setLeadFormStatus('success')
+      return
+    }
+
+    setLeadFormStatus('submitting')
+
+    const { error } = await supabase.from('leads').insert({
+      name: String(formData.get('name') ?? '').trim(),
+      email: String(formData.get('email') ?? '').trim().toLowerCase(),
+      phone: String(formData.get('phone') ?? '').trim(),
+      company: String(formData.get('company') ?? '').trim(),
+      monthly_revenue: String(formData.get('revenue') ?? ''),
+      source: 'brandupadvisory.com',
+      status: 'new',
+    })
+
+    if (error) {
+      console.error('Lead submission failed', error)
+      setLeadFormStatus('error')
+      return
+    }
+
+    form.reset()
+    setLeadFormStatus('success')
+  }
 
   useEffect(() => {
     const revealElements = Array.from(
@@ -608,26 +646,71 @@ function App() {
             </div>
           </div>
 
-          <form className="lead-form" aria-label="Diagnosis form">
+          <form
+            className="lead-form"
+            aria-label="Diagnosis form"
+            onInput={() => {
+              if (leadFormStatus !== 'idle' && leadFormStatus !== 'submitting') {
+                setLeadFormStatus('idle')
+              }
+            }}
+            onSubmit={handleLeadSubmit}
+          >
+            <label className="form-honeypot" aria-hidden="true">
+              Website
+              <input
+                autoComplete="off"
+                name="website"
+                tabIndex={-1}
+                type="text"
+              />
+            </label>
             <label className="field-compact">
               <span className="sr-only">Name</span>
-              <input type="text" name="name" placeholder="Your name" />
+              <input
+                autoComplete="name"
+                minLength={2}
+                name="name"
+                placeholder="Your name"
+                required
+                type="text"
+              />
             </label>
             <label className="field-compact">
               <span className="sr-only">Email</span>
-              <input type="email" name="email" placeholder="Your best email" />
+              <input
+                autoComplete="email"
+                name="email"
+                placeholder="Your best email"
+                required
+                type="email"
+              />
             </label>
             <label className="field-compact">
               <span className="sr-only">Phone number</span>
-              <input type="tel" name="phone" placeholder="WhatsApp number" />
+              <input
+                autoComplete="tel"
+                minLength={6}
+                name="phone"
+                placeholder="WhatsApp number"
+                required
+                type="tel"
+              />
             </label>
             <label className="field-compact">
               <span className="sr-only">Company name</span>
-              <input type="text" name="company" placeholder="Company name" />
+              <input
+                autoComplete="organization"
+                minLength={2}
+                name="company"
+                placeholder="Company name"
+                required
+                type="text"
+              />
             </label>
             <label className="full">
               What is your monthly revenue?
-              <select name="revenue" defaultValue="">
+              <select name="revenue" defaultValue="" required>
                 <option value="" disabled>
                   Select your revenue
                 </option>
@@ -637,10 +720,25 @@ function App() {
                 <option>Above AUD 150k</option>
               </select>
             </label>
-            <button className="primary-action full" type="submit">
-              Get more information
+            <button
+              className="primary-action full"
+              disabled={leadFormStatus === 'submitting'}
+              type="submit"
+            >
+              {leadFormStatus === 'submitting'
+                ? 'Sending information...'
+                : 'Get more information'}
             </button>
-        </form>
+            <p
+              className={`lead-form-message ${leadFormStatus}`}
+              role={leadFormStatus === 'error' ? 'alert' : 'status'}
+            >
+              {leadFormStatus === 'success' &&
+                'Thank you. Your information was received successfully.'}
+              {leadFormStatus === 'error' &&
+                'We could not send your information. Please try again.'}
+            </p>
+          </form>
         </div>
       </section>
 

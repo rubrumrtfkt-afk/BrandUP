@@ -434,6 +434,16 @@ footer {
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.25);
 }
 
+.form-honeypot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 label {
   display: grid;
   gap: 8px;
@@ -492,6 +502,28 @@ select:focus {
     0 0 0 rgba(138, 233, 221, 0);
   animation: ctaGlowPulse 2.6s ease-in-out infinite;
   text-transform: uppercase;
+}
+
+.lead-form .primary-action:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.lead-form-message {
+  min-height: 22px;
+  margin: -4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.lead-form-message.success {
+  color: var(--aqua);
+}
+
+.lead-form-message.error {
+  color: #ff9cbd;
 }
 
 @keyframes ctaGlowPulse {
