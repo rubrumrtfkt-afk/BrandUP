@@ -41,6 +41,7 @@ function AdminPage() {
   const [authReady, setAuthReady] = useState(false)
   const [sessionEmail, setSessionEmail] = useState<string | null>(null)
   const [isAuthorized, setIsAuthorized] = useState(false)
+  const [isCheckingAccess, setIsCheckingAccess] = useState(false)
   const [isLoadingLeads, setIsLoadingLeads] = useState(false)
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [isAcceptingInvitation, setIsAcceptingInvitation] = useState(false)
@@ -59,6 +60,7 @@ function AdminPage() {
   const [leads, setLeads] = useState<Lead[]>([])
 
   const loadDashboard = async (userId: string, email: string | null) => {
+    setIsCheckingAccess(true)
     setIsLoadingLeads(true)
     setDashboardError('')
     setSessionEmail(email)
@@ -73,10 +75,17 @@ function AdminPage() {
       setIsAuthorized(false)
       setLeads([])
       setIsLoadingLeads(false)
+      setIsCheckingAccess(false)
+
+      if (membershipError) {
+        setDashboardError('Secure access could not be verified. Please sign out and try again.')
+      }
+
       return
     }
 
     setIsAuthorized(true)
+    setIsCheckingAccess(false)
 
     const { data, error } = await supabase
       .from('leads')
@@ -126,14 +135,12 @@ function AdminPage() {
       }
 
       if (event === 'SIGNED_IN') {
+        setSessionEmail(session.user.email ?? null)
+        setAuthReady(true)
+
         if (sessionStorage.getItem('brandup-password-setup') === '1') {
           setRequiresPasswordSetup(true)
-          setSessionEmail(session.user.email ?? null)
-          setAuthReady(true)
-          return
         }
-
-        void loadDashboard(session.user.id, session.user.email ?? null)
       }
     })
 
@@ -176,17 +183,33 @@ function AdminPage() {
     setLoginError('')
 
     const formData = new FormData(event.currentTarget)
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: String(formData.get('email') ?? '').trim().toLowerCase(),
       password: String(formData.get('password') ?? ''),
     })
 
     if (error) {
-      setLoginError('Invalid email or password.')
+      if (error.code === 'email_not_confirmed') {
+        setLoginError('This email address has not been confirmed yet.')
+      } else if (error.code === 'over_request_rate_limit') {
+        setLoginError('Too many attempts. Wait a moment and try again.')
+      } else if (error.code === 'invalid_credentials') {
+        setLoginError('The email or password is incorrect.')
+      } else {
+        setLoginError('The authentication service could not be reached. Please try again.')
+      }
+
       setIsSigningIn(false)
       return
     }
 
+    if (!data.user) {
+      setLoginError('The session could not be created. Please try again.')
+      setIsSigningIn(false)
+      return
+    }
+
+    await loadDashboard(data.user.id, data.user.email ?? null)
     setIsSigningIn(false)
   }
 
@@ -478,12 +501,23 @@ function AdminPage() {
     )
   }
 
+  if (isCheckingAccess && !isAuthorized) {
+    return (
+      <main className="admin-state-screen" aria-busy="true">
+        <LoaderCircle className="admin-spinner" aria-hidden="true" />
+        <p>Verifying agency access...</p>
+      </main>
+    )
+  }
+
   if (!isAuthorized) {
     return (
       <main className="admin-state-screen">
         <ShieldCheck aria-hidden="true" size={38} />
         <h1>Access not authorized</h1>
-        <p>{sessionEmail} is not on the BrandUp agency access list.</p>
+        <p>
+          {dashboardError || `${sessionEmail} is not on the BrandUp agency access list.`}
+        </p>
         <button className="admin-secondary-button" onClick={handleLogout} type="button">
           <LogOut aria-hidden="true" size={18} />
           Sign out
