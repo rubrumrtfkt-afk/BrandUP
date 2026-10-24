@@ -153,6 +153,31 @@
   text-align: center;
 }
 
+.admin-form-success {
+  margin: -4px 0 0;
+  color: var(--aqua);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.admin-link-button {
+  justify-self: center;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.admin-link-button:hover {
+  color: var(--aqua);
+}
+
 .admin-state-screen {
   display: grid;
   place-content: center;
