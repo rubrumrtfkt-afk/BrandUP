@@ -6,6 +6,7 @@ import {
   KeyRound,
   LoaderCircle,
   LogOut,
+  Mail,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -13,6 +14,8 @@ import {
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import './AdminPage.css'
+
+type PasswordLinkType = 'invite' | 'recovery'
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'closed' | 'archived'
 
@@ -37,6 +40,25 @@ const statusLabels: Record<LeadStatus, string> = {
 
 const csvCell = (value: string) => `"${value.replaceAll('"', '""')}"`
 
+const passwordSetupKey = 'brandup-password-setup'
+
+// Read before Supabase finishes parsing the URL, because it clears the auth hash.
+const initialUrl = new URL(window.location.href)
+const initialHashParams = new URLSearchParams(initialUrl.hash.slice(1))
+const initialLinkError = initialHashParams.get('error_code')
+  ? 'This link has expired or was already used. Enter your email to get a new reset link.'
+  : ''
+
+const readPasswordSetup = (): PasswordLinkType | null => {
+  const value = sessionStorage.getItem(passwordSetupKey)
+
+  if (!value) {
+    return null
+  }
+
+  return value === 'recovery' ? 'recovery' : 'invite'
+}
+
 function AdminPage() {
   const [authReady, setAuthReady] = useState(false)
   const [sessionEmail, setSessionEmail] = useState<string | null>(null)
@@ -46,13 +68,20 @@ function AdminPage() {
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [isAcceptingInvitation, setIsAcceptingInvitation] = useState(false)
   const [isSettingPassword, setIsSettingPassword] = useState(false)
-  const [pendingInviteToken] = useState(
-    () => new URL(window.location.href).searchParams.get('token_hash') ?? '',
+  const [isSendingReset, setIsSendingReset] = useState(false)
+  const [pendingInviteToken] = useState(() => initialUrl.searchParams.get('token_hash') ?? '')
+  const [pendingLinkType] = useState<PasswordLinkType>(() =>
+    initialUrl.searchParams.get('type') === 'recovery' ? 'recovery' : 'invite',
   )
-  const [requiresPasswordSetup, setRequiresPasswordSetup] = useState(
-    () => sessionStorage.getItem('brandup-password-setup') === '1',
+  const [passwordSetup, setPasswordSetup] = useState<PasswordLinkType | null>(
+    readPasswordSetup,
+  )
+  const [loginView, setLoginView] = useState<'signIn' | 'forgot'>(() =>
+    initialLinkError ? 'forgot' : 'signIn',
   )
   const [loginError, setLoginError] = useState('')
+  const [resetError, setResetError] = useState(initialLinkError)
+  const [resetMessage, setResetMessage] = useState('')
   const [invitationError, setInvitationError] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [dashboardError, setDashboardError] = useState('')
@@ -113,7 +142,7 @@ function AdminPage() {
       if (session) {
         setSessionEmail(session.user.email ?? null)
 
-        if (sessionStorage.getItem('brandup-password-setup') !== '1') {
+        if (!readPasswordSetup()) {
           await loadDashboard(session.user.id, session.user.email ?? null)
         }
       }
@@ -134,12 +163,22 @@ function AdminPage() {
         return
       }
 
+      if (event === 'PASSWORD_RECOVERY') {
+        sessionStorage.setItem(passwordSetupKey, 'recovery')
+        setSessionEmail(session.user.email ?? null)
+        setPasswordSetup('recovery')
+        setAuthReady(true)
+        return
+      }
+
       if (event === 'SIGNED_IN') {
         setSessionEmail(session.user.email ?? null)
         setAuthReady(true)
 
-        if (sessionStorage.getItem('brandup-password-setup') === '1') {
-          setRequiresPasswordSetup(true)
+        const pendingSetup = readPasswordSetup()
+
+        if (pendingSetup) {
+          setPasswordSetup(pendingSetup)
         }
       }
     })
@@ -213,6 +252,43 @@ function AdminPage() {
     setIsSigningIn(false)
   }
 
+  const handleRequestReset = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setIsSendingReset(true)
+    setResetError('')
+    setResetMessage('')
+
+    const formData = new FormData(event.currentTarget)
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      String(formData.get('email') ?? '').trim().toLowerCase(),
+      { redirectTo: `${window.location.origin}/?admin=1` },
+    )
+
+    if (error) {
+      if (
+        error.code === 'over_email_send_rate_limit' ||
+        error.code === 'over_request_rate_limit'
+      ) {
+        setResetError('Too many reset requests. Wait a few minutes and try again.')
+      } else {
+        setResetError('The reset link could not be sent. Please try again.')
+      }
+    } else {
+      setResetMessage(
+        'If this email belongs to an agency account, a reset link is on its way. Check your inbox and spam folder.',
+      )
+    }
+
+    setIsSendingReset(false)
+  }
+
+  const showLoginView = (view: 'signIn' | 'forgot') => {
+    setLoginView(view)
+    setLoginError('')
+    setResetError('')
+    setResetMessage('')
+  }
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
   }
@@ -220,24 +296,26 @@ function AdminPage() {
   const handleAcceptInvitation = async () => {
     setIsAcceptingInvitation(true)
     setInvitationError('')
-    sessionStorage.setItem('brandup-password-setup', '1')
+    sessionStorage.setItem(passwordSetupKey, pendingLinkType)
 
     const { data, error } = await supabase.auth.verifyOtp({
       token_hash: pendingInviteToken,
-      type: 'invite',
+      type: pendingLinkType,
     })
 
     if (error || !data.session) {
-      sessionStorage.removeItem('brandup-password-setup')
+      sessionStorage.removeItem(passwordSetupKey)
       setInvitationError(
-        'This invitation is no longer valid. Ask BrandUp to send a new invitation.',
+        pendingLinkType === 'recovery'
+          ? 'This reset link is no longer valid. Request a new one from the sign-in page.'
+          : 'This invitation is no longer valid. Ask BrandUp to send a new invitation.',
       )
       setIsAcceptingInvitation(false)
       return
     }
 
     setSessionEmail(data.session.user.email ?? null)
-    setRequiresPasswordSetup(true)
+    setPasswordSetup(pendingLinkType)
     setIsAcceptingInvitation(false)
   }
 
@@ -265,14 +343,25 @@ function AdminPage() {
     const { data, error } = await supabase.auth.updateUser({ password })
 
     if (error || !data.user) {
-      setPasswordError('Your password could not be saved. Request a new invitation.')
+      if (error?.code === 'same_password') {
+        setPasswordError('Choose a password different from your current one.')
+      } else if (error?.code === 'weak_password') {
+        setPasswordError('This password is too weak. Try a longer one.')
+      } else {
+        setPasswordError(
+          passwordSetup === 'recovery'
+            ? 'Your password could not be saved. Request a new reset link.'
+            : 'Your password could not be saved. Request a new invitation.',
+        )
+      }
+
       setIsSettingPassword(false)
       return
     }
 
-    sessionStorage.removeItem('brandup-password-setup')
+    sessionStorage.removeItem(passwordSetupKey)
     window.history.replaceState({}, '', '/?admin=1')
-    setRequiresPasswordSetup(false)
+    setPasswordSetup(null)
     setIsSettingPassword(false)
     await loadDashboard(data.user.id, data.user.email ?? null)
   }
@@ -353,10 +442,16 @@ function AdminPage() {
             <span>BrandUp</span>
             <ShieldCheck aria-hidden="true" size={26} />
           </div>
-          <p className="admin-eyebrow">Secure invitation</p>
-          <h1 id="admin-invite-title">Activate agency access</h1>
+          <p className="admin-eyebrow">
+            {pendingLinkType === 'recovery' ? 'Password reset' : 'Secure invitation'}
+          </p>
+          <h1 id="admin-invite-title">
+            {pendingLinkType === 'recovery' ? 'Reset your password' : 'Activate agency access'}
+          </h1>
           <p className="admin-login-copy">
-            Confirm this invitation to create your password and access the lead dashboard.
+            {pendingLinkType === 'recovery'
+              ? 'Confirm this secure link to choose a new password for the lead dashboard.'
+              : 'Confirm this invitation to create your password and access the lead dashboard.'}
           </p>
           <button
             className="admin-primary-button"
@@ -369,11 +464,20 @@ function AdminPage() {
             ) : (
               <ShieldCheck aria-hidden="true" size={20} />
             )}
-            {isAcceptingInvitation ? 'Confirming invitation...' : 'Accept secure invitation'}
+            {isAcceptingInvitation
+              ? 'Confirming link...'
+              : pendingLinkType === 'recovery'
+                ? 'Continue securely'
+                : 'Accept secure invitation'}
           </button>
           <p className="admin-form-error" role="alert">
             {invitationError}
           </p>
+          {invitationError && pendingLinkType === 'recovery' && (
+            <a className="admin-link-button" href="/?admin=1">
+              Back to sign in
+            </a>
+          )}
         </section>
       </main>
     )
@@ -393,51 +497,101 @@ function AdminPage() {
             <ShieldCheck aria-hidden="true" size={26} />
           </div>
           <p className="admin-eyebrow">Agency access</p>
-          <h1 id="admin-login-title">Lead dashboard</h1>
+          <h1 id="admin-login-title">
+            {loginView === 'forgot' ? 'Reset your password' : 'Lead dashboard'}
+          </h1>
           <p className="admin-login-copy">
-            Sign in with your authorized agency account to manage incoming leads.
+            {loginView === 'forgot'
+              ? 'Enter your agency email and we will send you a secure link to choose a new password.'
+              : 'Sign in with your authorized agency account to manage incoming leads.'}
           </p>
 
-          <form className="admin-login-form" onSubmit={handleLogin}>
-            <label>
-              Email
-              <input
-                autoComplete="email"
-                name="email"
-                placeholder="name@brandupadvisory.com"
-                required
-                type="email"
-              />
-            </label>
-            <label>
-              Password
-              <input
-                autoComplete="current-password"
-                minLength={8}
-                name="password"
-                placeholder="Your password"
-                required
-                type="password"
-              />
-            </label>
-            <button className="admin-primary-button" disabled={isSigningIn} type="submit">
-              {isSigningIn ? (
-                <LoaderCircle className="admin-spinner" aria-hidden="true" size={20} />
+          {loginView === 'forgot' ? (
+            <form className="admin-login-form" onSubmit={handleRequestReset}>
+              <label>
+                Email
+                <input
+                  autoComplete="email"
+                  name="email"
+                  placeholder="name@brandupadvisory.com"
+                  required
+                  type="email"
+                />
+              </label>
+              <button className="admin-primary-button" disabled={isSendingReset} type="submit">
+                {isSendingReset ? (
+                  <LoaderCircle className="admin-spinner" aria-hidden="true" size={20} />
+                ) : (
+                  <Mail aria-hidden="true" size={20} />
+                )}
+                {isSendingReset ? 'Sending link...' : 'Send reset link'}
+              </button>
+              {resetMessage ? (
+                <p className="admin-form-success" role="status">
+                  {resetMessage}
+                </p>
               ) : (
-                <ShieldCheck aria-hidden="true" size={20} />
+                <p className="admin-form-error" role="alert">
+                  {resetError}
+                </p>
               )}
-              {isSigningIn ? 'Signing in...' : 'Sign in securely'}
-            </button>
-            <p className="admin-form-error" role="alert">
-              {loginError}
-            </p>
-          </form>
+              <button
+                className="admin-link-button"
+                onClick={() => showLoginView('signIn')}
+                type="button"
+              >
+                Back to sign in
+              </button>
+            </form>
+          ) : (
+            <form className="admin-login-form" onSubmit={handleLogin}>
+              <label>
+                Email
+                <input
+                  autoComplete="email"
+                  name="email"
+                  placeholder="name@brandupadvisory.com"
+                  required
+                  type="email"
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  autoComplete="current-password"
+                  minLength={8}
+                  name="password"
+                  placeholder="Your password"
+                  required
+                  type="password"
+                />
+              </label>
+              <button className="admin-primary-button" disabled={isSigningIn} type="submit">
+                {isSigningIn ? (
+                  <LoaderCircle className="admin-spinner" aria-hidden="true" size={20} />
+                ) : (
+                  <ShieldCheck aria-hidden="true" size={20} />
+                )}
+                {isSigningIn ? 'Signing in...' : 'Sign in securely'}
+              </button>
+              <p className="admin-form-error" role="alert">
+                {loginError}
+              </p>
+              <button
+                className="admin-link-button"
+                onClick={() => showLoginView('forgot')}
+                type="button"
+              >
+                Forgot password?
+              </button>
+            </form>
+          )}
         </section>
       </main>
     )
   }
 
-  if (requiresPasswordSetup) {
+  if (passwordSetup) {
     return (
       <main className="admin-login-page">
         <a className="admin-back-link" href="/">
@@ -450,11 +604,16 @@ function AdminPage() {
             <span>BrandUp</span>
             <ShieldCheck aria-hidden="true" size={26} />
           </div>
-          <p className="admin-eyebrow">Invitation accepted</p>
-          <h1 id="admin-password-title">Create your password</h1>
+          <p className="admin-eyebrow">
+            {passwordSetup === 'recovery' ? 'Password reset' : 'Invitation accepted'}
+          </p>
+          <h1 id="admin-password-title">
+            {passwordSetup === 'recovery' ? 'Choose a new password' : 'Create your password'}
+          </h1>
           <p className="admin-login-copy">
-            Set a secure password for {sessionEmail} to finish activating your agency
-            account.
+            {passwordSetup === 'recovery'
+              ? `Set a new password for ${sessionEmail} to get back into the lead dashboard.`
+              : `Set a secure password for ${sessionEmail} to finish activating your agency account.`}
           </p>
 
           <form className="admin-login-form" onSubmit={handleSetPassword}>
@@ -490,7 +649,11 @@ function AdminPage() {
               ) : (
                 <KeyRound aria-hidden="true" size={20} />
               )}
-              {isSettingPassword ? 'Saving password...' : 'Activate secure access'}
+              {isSettingPassword
+                ? 'Saving password...'
+                : passwordSetup === 'recovery'
+                  ? 'Save new password'
+                  : 'Activate secure access'}
             </button>
             <p className="admin-form-error" role="alert">
               {passwordError}
