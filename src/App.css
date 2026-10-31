@@ -287,7 +287,6 @@ p {
 }
 
 .notice-form,
-.testimonials,
 .about,
 .services,
 .team,
@@ -555,95 +554,6 @@ select:focus {
 .section-heading {
   width: min(900px, 100%);
   margin-bottom: clamp(28px, 5vw, 54px);
-}
-
-.video-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(16px, 3vw, 26px);
-  justify-items: center;
-}
-
-.video-card {
-  position: relative;
-  width: min(100%, 330px);
-  aspect-ratio: 9 / 16;
-  min-height: auto;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #120b19;
-}
-
-.video-card img {
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  inset: 0;
-  object-fit: cover;
-  filter: saturate(1.08) contrast(1.05);
-}
-
-.video-card button {
-  position: absolute;
-  z-index: 1;
-  top: 20px;
-  right: 20px;
-  width: 58px;
-  height: 58px;
-  display: grid;
-  place-items: center;
-  color: var(--text-strong);
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-}
-
-.short-card {
-  cursor: pointer;
-}
-
-.short-card:focus-visible {
-  outline: 3px solid rgba(138, 233, 221, 0.8);
-  outline-offset: 4px;
-}
-
-.short-player {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background: #09060c;
-}
-
-.short-player iframe,
-iframe.short-player {
-  width: 1032px;
-  height: 581px;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  border: 0;
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-}
-
-iframe.short-player {
-  inset: auto;
-  top: 50%;
-  left: 50%;
-}
-
-.short-player iframe {
-  display: block;
-}
-
-.short-volume {
-  isolation: isolate;
-}
-
-.short-card.is-playing .short-volume {
-  color: #09060c;
-  background: linear-gradient(135deg, var(--aqua), var(--accent));
-  border-color: rgba(138, 233, 221, 0.42);
 }
 
 .about {
@@ -935,7 +845,6 @@ footer p {
   }
 
   .hero-stats,
-  .video-grid,
   .notice-inner,
   .about-inner,
   .lead-form {

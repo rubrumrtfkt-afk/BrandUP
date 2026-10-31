@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, FormEvent, MouseEvent } from 'react'
+import { useEffect, useState } from 'react'
+import type { CSSProperties, FormEvent } from 'react'
 import NumberFlow, { continuous } from '@number-flow/react'
 import {
   ArrowRight,
@@ -13,42 +13,11 @@ import {
   Target,
   TrendingUp,
   Utensils,
-  Volume2,
-  VolumeX,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
+import Testimonials from './Testimonials'
 import './App.css'
 
-type YouTubePlayer = {
-  destroy: () => void
-  getPlayerState: () => number
-  mute: () => void
-  pauseVideo: () => void
-  playVideo: () => void
-  setVolume: (volume: number) => void
-  unMute: () => void
-}
-
-declare global {
-  interface Window {
-    YT?: {
-      Player: new (
-        element: HTMLElement | string,
-        options: {
-          videoId: string
-          playerVars: Record<string, number | string>
-          events?: {
-            onReady?: (event: { target: YouTubePlayer }) => void
-            onStateChange?: (event: { data: number }) => void
-          }
-        },
-      ) => YouTubePlayer
-    }
-    onYouTubeIframeAPIReady?: () => void
-  }
-}
-
-let youTubeApiPromise: Promise<void> | null = null
 const assetBaseUrl = import.meta.env.BASE_URL
 const heroImageUrl = `${assetBaseUrl}agnes-restaurant.png`
 
@@ -66,32 +35,6 @@ function BrandIcon() {
       <rect x="17.5" y="21" width="5" height="9" rx="2.5" fill="#ffffff" />
     </svg>
   )
-}
-
-const loadYouTubeApi = () => {
-  if (window.YT?.Player) {
-    return Promise.resolve()
-  }
-
-  if (!youTubeApiPromise) {
-    youTubeApiPromise = new Promise((resolve) => {
-      const previousReady = window.onYouTubeIframeAPIReady
-
-      window.onYouTubeIframeAPIReady = () => {
-        previousReady?.()
-        resolve()
-      }
-
-      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
-        const script = document.createElement('script')
-        script.src = 'https://www.youtube.com/iframe_api'
-        script.async = true
-        document.body.appendChild(script)
-      }
-    })
-  }
-
-  return youTubeApiPromise
 }
 
 const services = [
@@ -130,27 +73,6 @@ const services = [
     image: `${assetBaseUrl}service-reporting.png`,
     title: 'Clear reporting',
     text: 'Executive reporting on revenue, cost per lead, reservations, orders, and channel-level return.',
-  },
-]
-
-const testimonials = [
-  {
-    name: 'Marco L.',
-    role: 'Artisanal pizzeria in Sydney',
-    metric: '+41% in dinner bookings',
-    youtubeId: 'YT6Gys9mkBo',
-  },
-  {
-    name: 'Emily T.',
-    role: 'Brunch cafe in Melbourne',
-    metric: '2.8x return on paid media',
-    youtubeId: 'w01Ep_iYMkk',
-  },
-  {
-    name: 'Rafael S.',
-    role: 'Latin restaurant in Brisbane',
-    metric: '+63% in delivery orders',
-    youtubeId: 'nTw6c8Yz97Y',
   },
 ]
 
@@ -294,10 +216,6 @@ function HeroStatItem({
 }
 
 function App() {
-  const shortsPlayers = useRef<Array<YouTubePlayer | null>>([])
-  const shortsRefs = useRef<Array<HTMLDivElement | null>>([])
-  const [mutedShorts, setMutedShorts] = useState(() => testimonials.map(() => true))
-  const [playingShorts, setPlayingShorts] = useState(() => testimonials.map(() => false))
   const [serviceBeltDuration, setServiceBeltDuration] = useState(30)
   const [heroStatsActive, setHeroStatsActive] = useState(false)
   const [leadFormStatus, setLeadFormStatus] = useState<
@@ -406,60 +324,6 @@ function App() {
     }
   }, [])
 
-  useEffect(() => {
-    let disposed = false
-
-    loadYouTubeApi().then(() => {
-      const youtube = window.YT
-
-      if (disposed || !youtube?.Player) {
-        return
-      }
-
-      testimonials.forEach((item, index) => {
-        const container = shortsRefs.current[index]
-
-        if (!container || shortsPlayers.current[index]) {
-          return
-        }
-
-        shortsPlayers.current[index] = new youtube.Player(container, {
-          videoId: item.youtubeId,
-          playerVars: {
-            autoplay: 0,
-            controls: 0,
-            disablekb: 1,
-            fs: 0,
-            iv_load_policy: 3,
-            loop: 1,
-            modestbranding: 1,
-            playsinline: 1,
-            playlist: item.youtubeId,
-            rel: 0,
-          },
-          events: {
-            onReady: ({ target }) => {
-              target.mute()
-              target.setVolume(74)
-            },
-            onStateChange: ({ data }) => {
-              setPlayingShorts((current) =>
-                current.map((value, playerIndex) =>
-                  playerIndex === index ? data === 1 : value,
-                ),
-              )
-            },
-          },
-        })
-      })
-    })
-
-    return () => {
-      disposed = true
-      shortsPlayers.current.forEach((player) => player?.destroy())
-      shortsPlayers.current = []
-    }
-  }, [])
 
   const scrollToForm = () => {
     document.getElementById('diagnostic')?.scrollIntoView({ behavior: 'smooth' })
@@ -473,57 +337,6 @@ function App() {
 
       return Math.min(Math.max(nextDuration, 14), 46)
     })
-  }
-
-  const toggleShortPlayback = (index: number) => {
-    const player = shortsPlayers.current[index]
-
-    if (!player) {
-      return
-    }
-
-    if (player.getPlayerState() === 1) {
-      player.pauseVideo()
-      setPlayingShorts((current) =>
-        current.map((value, playerIndex) => (playerIndex === index ? false : value)),
-      )
-      return
-    }
-
-    shortsPlayers.current.forEach((otherPlayer, playerIndex) => {
-      if (playerIndex !== index) {
-        otherPlayer?.pauseVideo()
-      }
-    })
-    player.playVideo()
-    setPlayingShorts((current) =>
-      current.map((_, playerIndex) => playerIndex === index),
-    )
-  }
-
-  const toggleShortVolume = (
-    event: MouseEvent<HTMLButtonElement>,
-    index: number,
-  ) => {
-    event.stopPropagation()
-
-    const player = shortsPlayers.current[index]
-    const shouldMute = !mutedShorts[index]
-
-    if (player) {
-      if (shouldMute) {
-        player.mute()
-      } else {
-        player.unMute()
-        player.setVolume(74)
-      }
-    }
-
-    setMutedShorts((current) =>
-      current.map((isMuted, playerIndex) =>
-        playerIndex === index ? shouldMute : isMuted,
-      ),
-    )
   }
 
   return (
@@ -742,51 +555,7 @@ function App() {
         </div>
       </section>
 
-      <section className="testimonials" aria-labelledby="testimonials-title">
-        <div className="section-inner">
-          <div className="section-heading reveal-on-scroll">
-            <p className="eyebrow">Testimonials</p>
-            <h2 id="testimonials-title">Results shared by people who live the restaurant business.</h2>
-          </div>
-
-          <div className="video-grid">
-            {testimonials.map((item, index) => (
-              <article
-                className={`video-card short-card${playingShorts[index] ? ' is-playing' : ''}`}
-                key={item.name}
-                onClick={() => toggleShortPlayback(index)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    toggleShortPlayback(index)
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                <div
-                  className="short-player"
-                  ref={(node) => {
-                    shortsRefs.current[index] = node
-                  }}
-                />
-                <button
-                  className="short-volume"
-                  type="button"
-                  aria-label={mutedShorts[index] ? 'Turn sound on' : 'Turn sound off'}
-                  onClick={(event) => toggleShortVolume(event, index)}
-                >
-                  {mutedShorts[index] ? (
-                    <VolumeX aria-hidden="true" size={24} />
-                  ) : (
-                    <Volume2 aria-hidden="true" size={24} />
-                  )}
-                </button>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
+      <Testimonials />
 
       <section className="about" id="about-us">
         <div className="section-inner about-inner">
