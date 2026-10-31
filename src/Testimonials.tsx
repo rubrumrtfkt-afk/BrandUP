@@ -68,8 +68,8 @@ export default function Testimonials() {
       <div className="written-testimonials-inner">
         <div className="written-testimonials-heading">
           <p className="written-testimonials-eyebrow">Testimonials</p>
-          <h2 id="testimonials-title">In their own words.<br />In their <span>own businesses.</span></h2>
-          <p className="written-testimonials-intro">The people, the everyday challenges,<br />and what working with BrandUp means to them.</p>
+          <h2 id="testimonials-title">In their own words. In their <span>own businesses.</span></h2>
+          <p className="written-testimonials-intro">The people, the everyday challenges, and what working with BrandUp means to them.</p>
         </div>
         <div className="testimonial-rail" id="testimonial-rail" ref={rail} onScroll={measure} tabIndex={0} aria-label="Written testimonials; scroll to read all four">
           {testimonials.map((item) => (
