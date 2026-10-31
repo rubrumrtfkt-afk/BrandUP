@@ -35,7 +35,8 @@ export default function Testimonials() {
     if (!element || !card) return
     const step = card.getBoundingClientRect().width + parseFloat(getComputedStyle(element).columnGap)
     const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth)
-    const pages = Math.max(1, Math.ceil(maxScroll / step) + 1)
+    // Layout rounds scrollWidth to whole pixels; ignore the subpixel remainder.
+    const pages = Math.max(1, Math.ceil(Math.max(0, maxScroll - 3) / step) + 1)
     const page = element.scrollLeft >= maxScroll - 3
       ? pages - 1
       : Math.min(pages - 1, Math.round(element.scrollLeft / step))
