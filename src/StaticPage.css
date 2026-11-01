@@ -1,0 +1,51 @@
+.static-page {
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: clamp(64px, 10vw, 118px) 18px;
+  background: var(--bg);
+}
+
+.static-page-inner {
+  width: 100%;
+  max-width: 720px;
+}
+
+.static-page-eyebrow {
+  margin: 0 0 14px;
+  color: var(--aqua);
+  font-size: 18px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.static-page h1 {
+  margin: 0 0 20px;
+  color: var(--text-strong);
+  font-size: clamp(32px, 6vw, 46px);
+  line-height: 1.1;
+}
+
+.static-page h2 {
+  margin: 34px 0 10px;
+  color: var(--text-strong);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.static-page p,
+.static-page li {
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.static-page a {
+  color: var(--aqua);
+}
+
+.static-page .static-page-link {
+  display: inline-block;
+  margin-top: 34px;
+  font-weight: 800;
+}

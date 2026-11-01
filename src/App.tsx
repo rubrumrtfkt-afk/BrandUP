@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import NumberFlow, { continuous } from '@number-flow/react'
 import {
@@ -15,7 +15,7 @@ import {
   Utensils,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
-import Testimonials from './Testimonials'
+import { markLeadConfirmed, readAttribution } from './lib/attribution'
 import './App.css'
 
 const assetBaseUrl = import.meta.env.BASE_URL
@@ -218,12 +218,14 @@ function HeroStatItem({
 function App() {
   const [serviceBeltDuration, setServiceBeltDuration] = useState(30)
   const [heroStatsActive, setHeroStatsActive] = useState(false)
+  const submissionPending = useRef(false)
   const [leadFormStatus, setLeadFormStatus] = useState<
     'idle' | 'submitting' | 'success' | 'error'
   >('idle')
 
   const handleLeadSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (submissionPending.current) return
 
     const form = event.currentTarget
     const formData = new FormData(form)
@@ -234,26 +236,36 @@ function App() {
       return
     }
 
+    submissionPending.current = true
     setLeadFormStatus('submitting')
 
-    const { error } = await supabase.from('leads').insert({
-      name: String(formData.get('name') ?? '').trim(),
-      email: String(formData.get('email') ?? '').trim().toLowerCase(),
-      phone: String(formData.get('phone') ?? '').trim(),
-      company: String(formData.get('company') ?? '').trim(),
-      monthly_revenue: String(formData.get('revenue') ?? ''),
-      source: 'brandupadvisory.com',
-      status: 'new',
-    })
+    try {
+      const metaEventId = crypto.randomUUID()
 
-    if (error) {
-      console.error('Lead submission failed', error)
+      const { error } = await supabase.from('leads').insert({
+        name: String(formData.get('name') ?? '').trim(),
+        email: String(formData.get('email') ?? '').trim().toLowerCase(),
+        phone: String(formData.get('phone') ?? '').trim(),
+        company: String(formData.get('company') ?? '').trim(),
+        monthly_revenue: String(formData.get('revenue') ?? ''),
+        source: 'brandupadvisory.com',
+        status: 'new',
+        meta_event_id: metaEventId,
+        ...readAttribution(),
+      })
+
+      if (error) {
+        setLeadFormStatus('error')
+        return
+      }
+
+      markLeadConfirmed(metaEventId)
+      window.location.assign('/thank-you')
+    } catch {
       setLeadFormStatus('error')
-      return
+    } finally {
+      submissionPending.current = false
     }
-
-    form.reset()
-    setLeadFormStatus('success')
   }
 
   useEffect(() => {
@@ -362,9 +374,6 @@ function App() {
                 <a href="https://www.instagram.com/brandup.aus/" aria-label="Instagram BrandUp" target="_blank" rel="noreferrer">
                   <img src="https://cdn.simpleicons.org/instagram/ffffff" alt="" aria-hidden="true" />
                 </a>
-                <a href="https://wa.me/?text=I%20want%20to%20receive%20more%20information%20about%20BrandUp" aria-label="WhatsApp BrandUp" target="_blank" rel="noreferrer">
-                  <img src="https://cdn.simpleicons.org/whatsapp/ffffff" alt="" aria-hidden="true" />
-                </a>
               </div>
               <button className="nav-cta" type="button" onClick={scrollToForm}>
                 <span>Diagnosis</span>
@@ -375,14 +384,13 @@ function App() {
 
           <div className="hero-content">
             <h1>
-              HOW RESTAURANTS ARE GENERATING <strong>OVER $250K PER MONTH</strong>{' '}
-              WITHIN 90 DAYS BY INVESTING IN MARKETING.
+              MORE ORDERS AND BOOKINGS FOR YOUR RESTAURANT,{' '}
+              <strong>FROM PEOPLE NEARBY.</strong>
             </h1>
             <p className="hero-copy">
               The best digital marketing and online presence strategies to put
               you at the top when customers search, compare, and decide where to
-              eat. We have already generated <strong>OVER 10 MILLION</strong>{' '}
-              in sales for our clients.
+              eat.
             </p>
             <div className="hero-actions">
               <button className="primary-action" type="button" onClick={scrollToForm}>
@@ -399,9 +407,9 @@ function App() {
             <HeroStatItem
               active={heroStatsActive}
               delay={80}
-              label="to validate offers and channels"
-              suffix=" days"
-              value={90}
+              label="Meta and Google"
+              suffix=" ad platforms"
+              value={2}
             />
             <HeroStatItem
               active={heroStatsActive}
@@ -409,14 +417,6 @@ function App() {
               label="traffic, creative, and conversion"
               suffix=" fronts"
               value={3}
-            />
-            <HeroStatItem
-              active={heroStatsActive}
-              delay={280}
-              label="revenue generated by our clients"
-              prefix="$"
-              suffix="k"
-              value={250}
             />
           </div>
         </div>
@@ -438,8 +438,8 @@ function App() {
                   <h3>Complete the form</h3>
                   <p>
                     <strong>Share your information</strong> in the form beside
-                    this section. Your data is kept safe and will only be used
-                    for contact.
+                    this section. Read our privacy policy to learn how we
+                    handle your information.
                   </p>
                 </div>
               </article>
@@ -449,10 +449,9 @@ function App() {
                 <div>
                   <h3>Get a personalized call</h3>
                   <p>
-                    Within <strong>up to 5 minutes</strong> during business
-                    hours, one of our specialists will{' '}
-                    <strong>contact you directly</strong> to schedule the most
-                    important meeting with you.
+                    After you send your enquiry, our team will{' '}
+                    <strong>contact you directly</strong> to discuss your goals
+                    and arrange a conversation.
                   </p>
                 </div>
               </article>
@@ -551,18 +550,19 @@ function App() {
               {leadFormStatus === 'error' &&
                 'We could not send your information. Please try again.'}
             </p>
+            <p className="form-privacy full">
+              We use your details to respond to your enquiry. Read our <a href="/privacy">privacy policy</a>.
+            </p>
           </form>
         </div>
       </section>
-
-      <Testimonials />
 
       <section className="about" id="about-us">
         <div className="section-inner about-inner">
           <div className="about-image reveal-on-scroll" aria-hidden="true" />
           <div className="section-copy reveal-on-scroll">
             <p className="eyebrow">About us</p>
-            <h2>A leader in restaurant marketing for brands that need to sell every day.</h2>
+            <h2>Restaurant marketing for brands that need to sell every day.</h2>
             <p>
               We are an agency specialized in restaurants, coffee shops, and delivery
               operations. We combine market intelligence, high-converting
@@ -663,7 +663,7 @@ function App() {
               <BrandIcon />
             </a>
             <p>Marketing agency focused on restaurants in Australia.</p>
-            <p className="legal">ABN: 00 000 000 000</p>
+            <p className="legal"><a href="/privacy">Privacy policy</a></p>
           </div>
           <div className="socials" aria-label="Social media">
             <a href="https://www.facebook.com/profile.php?id=61591164172060&locale=pt_BR" aria-label="Facebook BrandUp" target="_blank" rel="noreferrer">
@@ -671,9 +671,6 @@ function App() {
             </a>
             <a href="https://www.instagram.com/brandup.aus/" aria-label="Instagram BrandUp" target="_blank" rel="noreferrer">
               <img src="https://cdn.simpleicons.org/instagram/ffffff" alt="" aria-hidden="true" />
-            </a>
-            <a href="https://wa.me/?text=I%20want%20to%20receive%20more%20information%20about%20BrandUp" aria-label="WhatsApp BrandUp" target="_blank" rel="noreferrer">
-              <img src="https://cdn.simpleicons.org/whatsapp/ffffff" alt="" aria-hidden="true" />
             </a>
           </div>
         </div>

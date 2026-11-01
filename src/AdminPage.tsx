@@ -1,41 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   ArrowLeft,
-  Download,
   KeyRound,
   LoaderCircle,
   LogOut,
-  RefreshCw,
-  Search,
   ShieldCheck,
-  UsersRound,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import './AdminPage.css'
 
-type LeadStatus = 'new' | 'contacted' | 'qualified' | 'closed' | 'archived'
-
-type Lead = {
-  id: string
-  created_at: string
-  name: string
-  email: string
-  phone: string
-  company: string
-  monthly_revenue: string
-  status: LeadStatus
-}
-
-const statusLabels: Record<LeadStatus, string> = {
-  new: 'New',
-  contacted: 'Contacted',
-  qualified: 'Qualified',
-  closed: 'Closed',
-  archived: 'Archived',
-}
-
-const csvCell = (value: string) => `"${value.replaceAll('"', '""')}"`
+import LeadBoard from './LeadBoard'
+import type { Lead, LeadStatus } from './lib/leadboard'
 
 function AdminPage() {
   const [authReady, setAuthReady] = useState(false)
@@ -56,7 +32,6 @@ function AdminPage() {
   const [invitationError, setInvitationError] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [dashboardError, setDashboardError] = useState('')
-  const [searchTerm, setSearchTerm] = useState('')
   const [leads, setLeads] = useState<Lead[]>([])
 
   const loadDashboard = async (userId: string, email: string | null) => {
@@ -87,17 +62,20 @@ function AdminPage() {
     setIsAuthorized(true)
     setIsCheckingAccess(false)
 
-    const { data, error } = await supabase
-      .from('leads')
-      .select('id, created_at, name, email, phone, company, monthly_revenue, status')
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      setDashboardError('The leads could not be loaded. Please try again.')
-      setLeads([])
-    } else {
-      setLeads((data ?? []) as Lead[])
+    const items: Lead[] = []
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabase.from('leads')
+        .select('id,created_at,name,email,phone,company,monthly_revenue,status,utm_source,utm_medium,utm_campaign,utm_content,utm_term,fbclid,gclid,referrer,landing_page,offer,placement,partner,link_id')
+        .order('created_at', { ascending: false }).order('id').range(offset, offset + 999)
+      if (error) {
+        setDashboardError('Não foi possível atualizar os leads. Confira a conexão e se a migração do banco foi aplicada. Dados anteriores, se houver, foram mantidos.')
+        setIsLoadingLeads(false)
+        return
+      }
+      items.push(...data as Lead[])
+      if (data.length < 1000) break
     }
+    setLeads(items)
 
     setIsLoadingLeads(false)
   }
@@ -149,33 +127,6 @@ function AdminPage() {
       document.title = 'BrandUp | Restaurant Marketing Australia'
     }
   }, [])
-
-  const filteredLeads = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase()
-
-    if (!query) {
-      return leads
-    }
-
-    return leads.filter((lead) =>
-      [lead.name, lead.email, lead.phone, lead.company, lead.monthly_revenue]
-        .join(' ')
-        .toLowerCase()
-        .includes(query),
-    )
-  }, [leads, searchTerm])
-
-  const metrics = useMemo(
-    () => ({
-      total: leads.length,
-      new: leads.filter((lead) => lead.status === 'new').length,
-      contacted: leads.filter((lead) => lead.status === 'contacted').length,
-      converted: leads.filter((lead) =>
-        ['qualified', 'closed'].includes(lead.status),
-      ).length,
-    }),
-    [leads],
-  )
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -277,7 +228,7 @@ function AdminPage() {
     await loadDashboard(data.user.id, data.user.email ?? null)
   }
 
-  const refreshLeads = async () => {
+  const refreshLeads = useCallback(async () => {
     const {
       data: { session },
     } = await supabase.auth.getSession()
@@ -285,50 +236,16 @@ function AdminPage() {
     if (session) {
       await loadDashboard(session.user.id, session.user.email ?? null)
     }
-  }
+  }, [])
 
   const updateLeadStatus = async (leadId: string, status: LeadStatus) => {
-    const previousLeads = leads
-    setLeads((current) =>
-      current.map((lead) => (lead.id === leadId ? { ...lead, status } : lead)),
-    )
-
-    const { error } = await supabase.from('leads').update({ status }).eq('id', leadId)
-
+    setDashboardError('')
+    const { error } = await supabase.from('leads').update({ status }).eq('id', leadId).select('id').single()
     if (error) {
-      setLeads(previousLeads)
-      setDashboardError('The lead status could not be updated.')
+      setDashboardError('A etapa não foi salva. Nenhum dado local foi alterado; confira a conexão e tente novamente.')
+      return
     }
-  }
-
-  const exportCsv = () => {
-    const header = [
-      'Created at',
-      'Name',
-      'Email',
-      'Phone',
-      'Company',
-      'Monthly revenue',
-      'Status',
-    ]
-    const rows = filteredLeads.map((lead) => [
-      lead.created_at,
-      lead.name,
-      lead.email,
-      lead.phone,
-      lead.company,
-      lead.monthly_revenue,
-      statusLabels[lead.status],
-    ])
-    const csv = [header, ...rows]
-      .map((row) => row.map((value) => csvCell(value)).join(','))
-      .join('\n')
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `brandup-leads-${new Date().toISOString().slice(0, 10)}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
+    setLeads(current => current.map(lead => lead.id === leadId ? { ...lead, status } : lead))
   }
 
   if (!authReady) {
@@ -541,143 +458,7 @@ function AdminPage() {
         </div>
       </header>
 
-      <div className="admin-content">
-        <div className="admin-title-row">
-          <div>
-            <p className="admin-eyebrow">Lead management</p>
-            <h1>Agency pipeline</h1>
-            <p>Review, qualify, and follow up with every restaurant opportunity.</p>
-          </div>
-          <button className="admin-secondary-button" onClick={exportCsv} type="button">
-            <Download aria-hidden="true" size={18} />
-            Export CSV
-          </button>
-        </div>
-
-        <section className="admin-metrics" aria-label="Lead summary">
-          <article>
-            <span>Total leads</span>
-            <strong>{metrics.total}</strong>
-          </article>
-          <article>
-            <span>New</span>
-            <strong>{metrics.new}</strong>
-          </article>
-          <article>
-            <span>Contacted</span>
-            <strong>{metrics.contacted}</strong>
-          </article>
-          <article>
-            <span>Qualified / closed</span>
-            <strong>{metrics.converted}</strong>
-          </article>
-        </section>
-
-        <section className="admin-leads-panel" aria-labelledby="lead-table-title">
-          <div className="admin-toolbar">
-            <div>
-              <h2 id="lead-table-title">Incoming leads</h2>
-              <span>{filteredLeads.length} records</span>
-            </div>
-            <div className="admin-toolbar-actions">
-              <label className="admin-search">
-                <Search aria-hidden="true" size={18} />
-                <span className="admin-sr-only">Search leads</span>
-                <input
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search name, company, or contact"
-                  type="search"
-                  value={searchTerm}
-                />
-              </label>
-              <button
-                aria-label="Refresh leads"
-                disabled={isLoadingLeads}
-                onClick={refreshLeads}
-                title="Refresh leads"
-                type="button"
-              >
-                <RefreshCw
-                  className={isLoadingLeads ? 'admin-spinner' : undefined}
-                  aria-hidden="true"
-                  size={19}
-                />
-              </button>
-            </div>
-          </div>
-
-          {dashboardError && (
-            <p className="admin-dashboard-error" role="alert">
-              {dashboardError}
-            </p>
-          )}
-
-          {isLoadingLeads ? (
-            <div className="admin-table-state" aria-busy="true">
-              <LoaderCircle className="admin-spinner" aria-hidden="true" />
-              Loading leads...
-            </div>
-          ) : filteredLeads.length ? (
-            <div className="admin-table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Lead</th>
-                    <th>Company</th>
-                    <th>Contact</th>
-                    <th>Monthly revenue</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLeads.map((lead) => (
-                    <tr key={lead.id}>
-                      <td>
-                        {new Intl.DateTimeFormat('en-AU', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        }).format(new Date(lead.created_at))}
-                      </td>
-                      <td>
-                        <strong>{lead.name}</strong>
-                      </td>
-                      <td>{lead.company}</td>
-                      <td>
-                        <a href={`mailto:${lead.email}`}>{lead.email}</a>
-                        <a href={`tel:${lead.phone}`}>{lead.phone}</a>
-                      </td>
-                      <td>{lead.monthly_revenue}</td>
-                      <td>
-                        <select
-                          aria-label={`Status for ${lead.name}`}
-                          className={`admin-status admin-status-${lead.status}`}
-                          onChange={(event) =>
-                            updateLeadStatus(lead.id, event.target.value as LeadStatus)
-                          }
-                          value={lead.status}
-                        >
-                          {Object.entries(statusLabels).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="admin-table-state">
-              <UsersRound aria-hidden="true" size={28} />
-              {searchTerm ? 'No leads match this search.' : 'No leads have arrived yet.'}
-            </div>
-          )}
-        </section>
-      </div>
+      <LeadBoard leads={leads} loading={isLoadingLeads} error={dashboardError} refresh={refreshLeads} updateStatus={updateLeadStatus} />
     </main>
   )
 }

@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import AdminPage from './AdminPage.tsx'
+import Privacy from './Privacy.tsx'
+import ThankYou from './ThankYou.tsx'
+import { captureAttribution } from './lib/attribution'
 
 const url = new URL(window.location.href)
 const isAdminRoute =
@@ -16,8 +19,22 @@ if (
   sessionStorage.setItem('brandup-password-setup', '1')
 }
 
+const path = window.location.pathname.replace(/\/+$/, '')
+
+if (!isAdminRoute) {
+  captureAttribution()
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {isAdminRoute ? <AdminPage /> : <App />}
+    {isAdminRoute ? (
+      <AdminPage />
+    ) : path === '/thank-you' ? (
+      <ThankYou />
+    ) : path === '/privacy' ? (
+      <Privacy />
+    ) : (
+      <App />
+    )}
   </StrictMode>,
 )

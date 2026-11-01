@@ -9,6 +9,18 @@
       content="BrandUp, a marketing agency focused on restaurants in Australia."
     />
     <title>BrandUp | Marketing for restaurants in Australia</title>
+    <script>
+      // Meta Pixel, only on the live public site (never on the lead dashboard or local tests).
+      if (location.hostname === 'brandupadvisory.com' && new URLSearchParams(location.search).get('admin') !== '1' && !location.hash.toLowerCase().startsWith('#/admin')) {
+        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+        n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+        document,'script','https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '1748885616199469');
+        fbq('track', 'PageView');
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
