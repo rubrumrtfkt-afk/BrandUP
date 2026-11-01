@@ -5,6 +5,20 @@ export type Lead = Attribution & { id: string; created_at: string; name: string;
   phone: string; company: string; monthly_revenue: string; status: LeadStatus }
 export const statusLabels: Record<LeadStatus, string> = { new: 'Novo', contacted: 'Contatado', qualified: 'Qualificado', closed: 'Fechado', archived: 'Arquivado' }
 export const channelLabels: Record<string, string> = { meta: 'Meta', google: 'Google', instagram: 'Instagram', facebook: 'Facebook', whatsapp: 'WhatsApp', qr: 'QR / offline', referral: 'Indicação', email: 'Email', direct: 'Direto / não identificado', other: 'Outros' }
+export const revenueTiers = [
+  { grade: 'A', label: 'Lead A', range: 'Acima de AUD 80 mil/mês' },
+  { grade: 'B', label: 'Lead B', range: 'AUD 30 mil a AUD 80 mil/mês' },
+  { grade: 'C', label: 'Lead C', range: 'Até AUD 30 mil/mês' },
+] as const
+export function revenueGrade(revenue: string | null | undefined): 'A' | 'B' | 'C' | 'unclassified' {
+  switch (revenue) {
+    case 'AUD 80k to AUD 150k':
+    case 'Above AUD 150k': return 'A'
+    case 'AUD 30k to AUD 80k': return 'B'
+    case 'Up to AUD 30k': return 'C'
+    default: return 'unclassified'
+  }
+}
 export function channelOf(lead: Attribution) {
   const source = lead.utm_source?.toLowerCase() ?? ''
   if (lead.fbclid || ['meta', 'facebook', 'fb', 'instagram'].includes(source) && /paid|cpc|social_paid/.test(lead.utm_medium ?? '')) return 'meta'
@@ -20,12 +34,13 @@ export function channelOf(lead: Attribution) {
 export function needsAttention(lead: Lead, now: number) {
   return lead.status === 'new' && now - Date.parse(lead.created_at) >= 5 * 60 * 1000
 }
-export function filterLeads(leads: Lead[], filters: {query: string; days: string; channel: string; status: string; campaign: string; attention: boolean}, now: number) {
+export function filterLeads(leads: Lead[], filters: {query: string; days: string; channel: string; status: string; campaign: string; attention: boolean; grade?: string}, now: number) {
   const query = filters.query.trim().toLowerCase()
   return leads.filter(lead => (!filters.days || Date.parse(lead.created_at) >= now - Number(filters.days) * 86400000)
     && (!filters.channel || channelOf(lead) === filters.channel)
     && (!filters.status || lead.status === filters.status)
     && (!filters.campaign || lead.utm_campaign === filters.campaign)
+    && (!filters.grade || revenueGrade(lead.monthly_revenue) === filters.grade)
     && (!filters.attention || needsAttention(lead, now))
     && (!query || [lead.name, lead.company, lead.email, lead.phone, lead.utm_source, lead.utm_campaign, lead.utm_content, lead.offer, lead.partner].join(' ').toLowerCase().includes(query)))
 }

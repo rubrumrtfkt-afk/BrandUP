@@ -13,6 +13,20 @@
 .board-page-heading p:last-child { margin: 12px 0 0; font-size: 13px; line-height: 1.65; color: var(--text-muted); max-width: 650px; }
 .board-page-heading > button { flex-shrink: 0; }
 .board-stack { display: grid; gap: 22px; }
+.board-revenue-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.board-revenue-card { display: grid; gap: 12px; padding: 20px; text-align: left; border: 1px solid var(--line); border-radius: 10px; background: #100a16; color: var(--text); cursor: pointer; font: inherit; }
+.board-revenue-card > span { font-size: 13px; font-weight: 800; }
+.board-revenue-card > strong { color: white; font-size: 28px; }
+.board-revenue-card > small { color: var(--text-muted); font-size: 11px; line-height: 1.6; }
+.board-grade-A { --grade-color: #8ae9dd; }
+.board-grade-B { --grade-color: #c68fff; }
+.board-grade-C { --grade-color: #9ebdff; }
+.board-grade-unclassified { --grade-color: #b2a8bf; }
+.board-revenue-card > span { color: var(--grade-color); }
+.board-revenue-card[aria-pressed=true], .board-revenue-card:hover { border-color: var(--grade-color); }
+.board-revenue-card[aria-pressed=true] { box-shadow: inset 0 3px var(--grade-color); }
+.board-grade-badge { display: inline-flex; color: var(--grade-color); border: 1px solid currentColor; border-radius: 5px; padding: 4px 8px; font-size: 10px; font-weight: 800; margin-bottom: 8px; white-space: nowrap; }
+@media (max-width: 560px) { .board-revenue-tabs { gap: 8px; } .board-revenue-card { padding: 14px 10px; } .board-revenue-card > small { font-size: 10px; } }
 .board-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .board-between { justify-content: space-between; }
 .board-note { margin: 12px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.7; }

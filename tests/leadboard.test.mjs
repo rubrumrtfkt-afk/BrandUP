@@ -103,3 +103,21 @@ test('CSV cells escape quotes and neutralise spreadsheet formulas', () => {
   assert.equal(board.csvCell('=HYPERLINK("x")'), '"\'=HYPERLINK(""x"")"')
   assert.equal(board.csvCell('+61400000000'), '"\'+61400000000"')
 })
+
+test('Revenue grades classify all four form ranges without guessing missing revenue', () => {
+  assert.equal(board.revenueGrade('Above AUD 150k'), 'A')
+  assert.equal(board.revenueGrade('AUD 80k to AUD 150k'), 'A')
+  assert.equal(board.revenueGrade('AUD 30k to AUD 80k'), 'B')
+  assert.equal(board.revenueGrade('Up to AUD 30k'), 'C')
+  for (const value of [undefined, null, '', 'unknown']) assert.equal(board.revenueGrade(value), 'unclassified')
+})
+
+test('Revenue grade filters combine with existing channel and status filters', () => {
+  const now = Date.now()
+  const base = { name: 'TESTE', status: 'new', created_at: new Date(now).toISOString(), utm_source: 'google' }
+  const leads = ['Above AUD 150k', 'AUD 30k to AUD 80k', 'Up to AUD 30k', ''].map(monthly_revenue => ({ ...base, monthly_revenue }))
+  const filters = { query: '', days: '', channel: 'google', status: 'new', campaign: '', attention: false, grade: 'A' }
+  assert.deepEqual(board.filterLeads(leads, filters, now), [leads[0]])
+  assert.deepEqual(board.filterLeads(leads, { ...filters, grade: 'unclassified' }, now), [leads[3]])
+  assert.equal(board.filterLeads(leads, { ...filters, channel: 'meta' }, now).length, 0)
+})
