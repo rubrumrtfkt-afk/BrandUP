@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { markLeadConfirmed, readAttribution } from './lib/attribution'
+import Testimonials from './Testimonials'
 import './App.css'
 
 const assetBaseUrl = import.meta.env.BASE_URL
@@ -556,6 +557,8 @@ function App() {
           </form>
         </div>
       </section>
+
+      <Testimonials />
 
       <section className="about" id="about-us">
         <div className="section-inner about-inner">
