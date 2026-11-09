@@ -1,0 +1,447 @@
+/* v4.1 lab. Colour: near-black ground, brand purple only as light (WebGL) and in the logo. The action
+   button has three looks behind a flag (owner, 09/11): field (default, "Núcleo" lilac, the light gathers
+   around it), orbit (a dotted light runs the rim) and mint (the old flat button). */
+:root {
+  --ground: #08070B; --ink: #F4F1F8; --surface: #131118; --surface-2: #211E27; --mint: #58F6B1; --mint-hover: #8AF9C9;
+  --m: clamp(20px, 4.45vw, 64px); --gut: clamp(12px, 1.7vw, 24px);
+  --tela: 100svh;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--ground); -webkit-text-size-adjust: 100%; scroll-padding-top: 24px; }
+body { margin: 0; background: transparent; color: var(--ink); font-family: var(--font-text); font-size: var(--type-body-size); line-height: var(--type-body-leading); -webkit-font-smoothing: antialiased; overflow-x: clip; }
+/* v4.5 the ground (owner: "completely black" → texture and depth). html keeps the flat ground (also inline in the
+   <head>, the anti-flash); body is transparent so these two fixed layers paint between it and the canvas (z -1 in
+   the root stacking context). The canvas is transparent where it is unlit (engine alpha), so the ground is the same
+   before the engine boots, while it idles and without WebGL. ::before = a low purple fog CUT INTO DOTS by a 50 %
+   1-bit mask (light as grain, never a flat glow), its strength per scene ([data-ground], ground.ts);
+   ::after = static grain (specks of the ramp + darker pits) over a vignette. Nothing here touches the H1 (LCP). */
+body::before, body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; image-rendering: pixelated; }
+body::before { inset: -10vh 0; opacity: var(--fog, .6); transform: translateY(var(--fog-y, 0px)); transition: opacity 1.2s var(--ease-out), transform 1.2s var(--ease-out);
+  background: radial-gradient(ellipse 80% 40% at 50% 100%, rgb(146 50 234 / .2), rgb(146 50 234 / .07) 50%, transparent 78%), radial-gradient(ellipse 48% 36% at 0% 4%, rgb(146 50 234 / .08), transparent 72%), radial-gradient(ellipse 40% 30% at 100% 12%, rgb(146 50 234 / .05), transparent 72%); /* taste-skill-ignore: the fog is cut into 1-px dots by the mask below (dithered light), not a gradient fill */
+  -webkit-mask: url(./assets/ground-dither.png) 0 0 / 192px 192px; mask: url(./assets/ground-dither.png) 0 0 / 192px 192px; }
+body::after { background: url(./assets/ground-grain.png) 0 0 / 192px 192px, radial-gradient(ellipse 125% 95% at 50% 42%, transparent 52%, rgb(0 0 0 / .55)); } /* taste-skill-ignore: a vignette under the grain (depth of the ground), not a gradient fill */
+html[data-ground="hero"] { --fog: .9; --fog-y: 0vh; }
+html[data-ground="night"] { --fog: .45; --fog-y: 6vh; }
+html[data-ground="office"] { --fog: .6; --fog-y: 3vh; }
+html[data-ground="you"] { --fog: .5; --fog-y: 4vh; }
+html[data-ground="faq"] { --fog: .35; --fog-y: 8vh; }
+html[data-ground="form"] { --fog: .75; --fog-y: 0vh; }
+html[data-ground="final"] { --fog: 1; --fog-y: -3vh; }
+html[data-ground="foot"] { --fog: .3; --fog-y: 9vh; }
+@media (prefers-reduced-motion: reduce) { body::before { transition: none; } }
+/* the fixed canvas covers the viewport the engine draws to (inset: 0 on a fixed box = the viewport) */
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; display: block; }
+#root { position: relative; z-index: 1; }
+h1, h2, h3, p { margin: 0; }
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+/* the shader's dark box follows the text's own box, never a full-width block (owner 09/11) */
+[data-dark]:not(form) { width: fit-content; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+h1 { font-family: var(--font-display); font-size: var(--type-hook-size); font-weight: var(--type-hook-weight); font-stretch: var(--type-hook-stretch); line-height: var(--type-hook-leading); letter-spacing: var(--type-hook-tracking); max-width: var(--type-hook-measure); }
+h1 span { display: block; }
+h2 { font-family: var(--font-display); font-size: var(--type-h2-size); font-weight: var(--type-h2-weight); font-stretch: var(--type-hook-stretch); line-height: var(--type-h2-leading); letter-spacing: var(--type-h2-tracking); max-width: var(--type-h2-measure); text-wrap: balance; }
+.lede { max-width: 30ch; margin-top: 20px; }
+
+/* ---------- the action button */
+.btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 22px 0 24px; border: 0; border-radius: 10px;
+  background: #58F6B1 url(./assets/silk-mint.png) 0 0 / 240px 96px; image-rendering: pixelated; color: var(--ground); font: 500 16px/1 var(--font-text); text-decoration: none; cursor: pointer; transition: transform .12s ease; }
+.btn-label { position: relative; z-index: 1; }
+.btn-arrow { position: relative; z-index: 1; width: 10px; height: 13px; fill: currentColor; transition: transform .16s var(--ease-out); }
+.btn:hover .btn-arrow, .btn:focus-visible .btn-arrow { transform: translateY(-2px); }
+.btn:active { transform: scale(.985); }
+.btn:disabled { cursor: default; background: #2B2732; color: rgb(244 241 248 / .6); }
+.btn[data-state="sending"] { background-position: 0 -48px; }
+.ghost { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 18px; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--ink); font: 500 16px/1 var(--font-text); }
+.ghost.is-off { color: rgb(244 241 248 / .45); }
+
+/* ---------- header */
+.bar { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; height: 72px; padding: 0 var(--m); }
+.brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font: 400 18px/1 var(--font-display); font-stretch: 87.5%; letter-spacing: -0.01em; }
+.logo { width: 30px; height: 30px; }
+.bar-link { font-weight: 500; text-underline-offset: 5px; text-decoration-thickness: 1.5px; min-height: 44px; display: inline-flex; align-items: center; }
+.bar-link:hover { text-decoration-thickness: 3px; }
+
+/* ---------- hero */
+.hero { position: relative; min-height: 100svh; padding: 156px var(--m) 0; }
+.poster { position: absolute; top: 0; left: 0; width: 100%; height: 100lvh; pointer-events: none; z-index: 0; opacity: 1; transition: opacity .3s ease; }
+img.poster { object-fit: cover; }
+.gl-on .poster { opacity: 0; }
+.hero-copy { position: relative; z-index: 2; }
+.hero .lede { max-width: 40ch; font-size: var(--type-body-size); }
+.hero .btn { margin-top: 28px; }
+.proof { margin-top: 18px; width: fit-content; color: var(--ink-2); font-size: var(--type-label-size); font-weight: 500; }
+.hero .lede { width: fit-content; }
+.agents { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.agent { position: absolute; left: 0; top: 0; width: 56px; height: 56px; margin: -28px 0 0 -28px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; pointer-events: auto; font: inherit; }
+.agent-name { position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translate(-50%, 6px); white-space: nowrap; padding: 5px 9px; border-radius: 4px; background: var(--ground); color: var(--ink); font-size: var(--type-label-size); font-weight: 500; line-height: 1.2; opacity: 0; transition: opacity .2s ease, transform .2s ease; pointer-events: none; }
+.agent:hover .agent-name, .agent:focus-visible .agent-name, .agent[aria-pressed="true"] .agent-name { opacity: 1; transform: translate(-50%, 0); }
+.agent:first-child .agent-name { left: 0; transform: translate(0, 6px); }
+.agent:first-child:hover .agent-name, .agent:first-child[aria-pressed="true"] .agent-name, .agent:first-child:focus-visible .agent-name { transform: translate(0, 0); }
+.agent:nth-child(6) .agent-name { left: auto; right: 0; transform: translate(0, 6px); }
+.agent:nth-child(6):hover .agent-name, .agent:nth-child(6)[aria-pressed="true"] .agent-name, .agent:nth-child(6):focus-visible .agent-name { transform: translate(0, 0); }
+.vertex { position: absolute; left: 0; top: 0; width: 4px; height: 4px; margin: -2px 0 0 -2px; }
+
+/* ---------- sections */
+.sec { position: relative; padding: clamp(104px, 12vw, 184px) var(--m); }
+.stage { position: sticky; top: 0; height: var(--tela); overflow: hidden; }
+
+/* K1: the line rises into place, once (brief-v4.1 §4.1) */
+.k1-line { display: block; overflow: hidden; overflow: clip; padding-bottom: .12em; margin-bottom: -.12em; }
+.k1-line > span { display: block; }
+.k1[data-in="false"] .k1-line > span { transform: translateY(.6em); opacity: 0; }
+.k1[data-in="true"] .k1-line > span { transition: transform .56s var(--ease-out) calc(var(--i) * 90ms), opacity .56s var(--ease-out) calc(var(--i) * 90ms); }
+
+/* form */
+.form-sec { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gut); padding-bottom: 168px; }
+.form-copy { grid-column: 1 / span 5; }
+.form-sec .lead { grid-column: 7 / span 6; }
+.horizon { position: absolute; left: var(--m); right: var(--m); bottom: 48px; height: 4px; pointer-events: none; }
+.lead { display: grid; grid-template-columns: 1fr 1fr; gap: 22px var(--gut); }
+.field { display: grid; gap: 8px; align-content: start; min-width: 0; border: 0; margin: 0; padding: 0; }
+.field label, .field legend { width: fit-content; font-weight: 500; font-size: 15px; padding: 0; }
+.input { display: flex; align-items: center; min-height: 52px; border-radius: 10px; background: var(--surface); transition: background-color .18s ease; }
+.input:hover { background: #18161E; }
+.input:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
+.input input { flex: 1; min-width: 0; height: 52px; padding: 0 14px; border: 0; background: transparent; color: var(--ink); font: 400 16px/1 var(--font-text); outline: none; }
+.input input::placeholder { color: #8C8893; }
+.prefix { padding-left: 14px; color: var(--ink-2); }
+.input-phone input { padding-left: 8px; }
+.field[data-invalid] .input { background: #1E1418; }
+.err { color: #FFB4B4; font-size: 15px; line-height: 1.35; }
+.revenue { grid-column: 1 / -1; }
+.revenue legend { margin-bottom: 8px; }
+.blocks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.block { position: relative; display: block; cursor: pointer; }
+.block input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.block span { display: flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 8px; border-radius: 10px; background: var(--surface); font-weight: 500; font-size: 15px; text-align: center; transition: background-color .18s ease, color .18s ease; }
+.block:hover span { background: #1C1A22; }
+.block input:checked + span { background: var(--ink); color: var(--ground); }
+.block input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+.submit { grid-column: 1 / -1; display: grid; justify-items: start; gap: 12px; margin-top: 6px; }
+.privacy { width: fit-content; color: var(--ink-2); font-size: 15px; }
+.status { min-height: 1.5em; color: var(--ink-2); font-size: 15px; }
+
+/* night (§4.11): 1.4 screens; one log line under the title; the crest carries the hour; K3 */
+.night { position: relative; height: calc(var(--tela) * 1.4); }
+.night .stage { padding: clamp(96px, 10vw, 128px) var(--m) 0; }
+.night h2 { max-width: 18ch; }
+.k3-w { color: rgb(244 241 248 / calc(.38 + .62 * var(--lit, 1))); }
+.scenes .k3-w { --lit: 0; }
+/* T2: no grey title floating in the gap: the H2 enters with the scene (the K3 starts there) */
+.gl-on .night .k3 { opacity: 0; transition: opacity .5s var(--ease-out); }
+.gl-on .night:has([data-shift][data-on="true"]) .k3 { opacity: 1; }
+/* brief-v4.2 §5.2 "the shift": six figures on the floor, the moon as the clock, you asleep at home */
+.shift { --hot: #C9A2FF; --core: #FBF7FF; --deep: #5B1FA6; position: absolute; inset: 0; pointer-events: none; font-variant-numeric: tabular-nums; }
+.moon-path { position: absolute; left: 44%; right: calc(var(--m) + 60px); top: 104px; height: 150px; }
+.moon { position: absolute; left: -18px; top: -18px; display: grid; justify-items: center; gap: 6px; will-change: transform; }
+.moon svg { width: 36px; height: 36px; image-rendering: pixelated; }
+.moon-t { font: 500 15px/1 var(--font-text); letter-spacing: .02em; color: var(--ink); }
+.shift-office { position: absolute; left: var(--m); width: calc((100% - 2 * var(--m)) * .74); top: 43%; bottom: 5%; }
+.place { font: 500 12px/1 var(--font-text); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.desks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: auto auto; row-gap: clamp(16px, 6vh, 64px); margin-top: 18px; }
+.desk { display: grid; justify-items: start; gap: 4px; }
+/* the back row stands further away: a smaller figure (78 %), the text keeps its size */
+.desk:nth-child(-n+3) { padding-left: 4%; }
+.desk:nth-child(-n+3) .fig { width: 56px; height: 56px; }
+.fig { position: relative; display: block; width: 72px; height: 72px; }
+/* T3 "the dawn": the figure comes apart in 4 hard steps (scroll-bound, nightShift --melt) while its dots fly off */
+.gl-on .desk .fig { opacity: calc(1 - var(--melt, 0)); }
+.seated, .sleeper-svg { display: block; width: 100%; height: 100%; shape-rendering: crispEdges; }
+.seated .mon-back { fill: var(--deep); }
+.seated .mon { fill: var(--hot); opacity: .25; transition: opacity .06s steps(1, end) calc(var(--i) * 60ms); }
+.seated .lamp { fill: var(--hot); opacity: .5; }
+.shift[data-on="true"] .mon { opacity: 1; animation: mon-idle calc(2.2s + var(--i) * .37s) steps(1, end) calc(var(--i) * .41s + .4s) infinite; }
+@keyframes mon-idle { 0%, 88% { opacity: 1; } 89%, 100% { opacity: .8; } }
+.desk[data-work="true"] .mon { fill: var(--core); }
+.desk[data-work="true"] .arm { animation: type-3 .36s steps(3, end) 1; }
+@keyframes type-3 { from { transform: translateX(-1px); } to { transform: translateX(1px); } }
+.beam { position: absolute; left: 75%; top: 26%; width: 2px; height: 72px; margin-left: -1px; background: repeating-linear-gradient(to top, var(--core) 0 2px, transparent 2px 4px); transform-origin: 50% 100%; transform: translateY(-100%) scaleY(0); opacity: 0; } /* taste-skill-ignore: a dotted beam (2-px dots), not a gradient fill */
+.desk[data-work="true"] .beam { animation: beam-up .6s cubic-bezier(.2, .8, .2, 1) 1; }
+@keyframes beam-up { 0% { opacity: 1; transform: translateY(-100%) scaleY(0); } 60% { opacity: 1; transform: translateY(-100%) scaleY(1); } 100% { opacity: 0; transform: translateY(-160%) scaleY(.4); } }
+.desk-label { display: grid; gap: 3px; padding: 2px 0; }
+.dname { font: 500 15px/1.2 var(--font-text); color: var(--ink); }
+.dname .short { display: none; }
+.dtask { font: 400 12px/1.25 var(--font-text); letter-spacing: .02em; color: var(--ink-2); white-space: nowrap; }
+.dtask[data-fresh="true"] { color: var(--ink); }
+.home { position: absolute; right: var(--m); width: calc((100% - 2 * var(--m)) * .2); top: 43%; bottom: 5%; padding-left: 28px; border-left: 1px solid rgb(244 241 248 / .08); display: grid; align-content: start; gap: 18px; } /* taste-skill-ignore: brief-v4.2 §5.2 asks for this hairline (alpha .08) between Office and Home */
+.sleeper { position: relative; display: block; width: 144px; height: 72px; margin-top: calc(56px + 6vh + 40px); }
+.sleeper .handset { fill: #15121B; }
+.home[data-lit="true"] .handset { fill: var(--core); }
+/* the one dose of green in the section (§5.2): a dotted, hard-edged energy field around the phone, no glow */
+.phone-aura { position: absolute; left: calc(63.5 / 72 * 100% - 15px); top: calc(21 / 36 * 100% - 12px); width: 30px; height: 24px; opacity: 0;
+  background: repeating-conic-gradient(var(--mint) 0 25%, transparent 0 50%) 0 0 / 4px 4px; /* taste-skill-ignore: a 4-px checker (Bayer dither of the energy / the light), not a gradient fill */
+  -webkit-mask: radial-gradient(closest-side, rgb(0 0 0 / .45) 0 55%, rgb(0 0 0 / .18) 55% 100%, transparent 100%); mask: radial-gradient(closest-side, rgb(0 0 0 / .45) 0 55%, rgb(0 0 0 / .18) 55% 100%, transparent 100%); } /* taste-skill-ignore: hard-stop masks that cut the dither into a disc / a ring, not a fill */
+.home[data-lit="true"] .phone-aura { opacity: 1; animation: aura-3 .9s steps(3, end) infinite; }
+@keyframes aura-3 { 0% { opacity: 1; } 33% { opacity: .6; } 66% { opacity: .85; } }
+.wait { font: 400 12px/1.25 var(--font-text); letter-spacing: .02em; color: var(--ink-2); }
+.home[data-lit="true"] .wait { color: var(--ink); }
+/* without the engine there is no grid: a still floor of dots under the figures (the poster) */
+:is(.gl-off, .reduced, .no-js) .shift-office::before { content: ""; position: absolute; inset: 30px -2% -4% -2%; z-index: -1; background: radial-gradient(circle, rgb(146 50 234 / .55) 1px, transparent 1.5px) 0 0 / 22px 22px; -webkit-mask: linear-gradient(transparent, #000 30%); mask: linear-gradient(transparent, #000 30%); } /* taste-skill-ignore: a still floor of 1-px dots (the grid without WebGL), not a gradient fill */
+:is(.gl-off, .reduced, .no-js) .night { height: auto; }
+:is(.gl-off, .reduced, .no-js) .night .stage { position: relative; height: max(760px, var(--tela)); padding-bottom: 96px; }
+
+/* office (§4.3 + §4.2): one pinned scene, 3.2 screens; the model has no frame */
+.office { position: relative; height: calc(var(--tela) * 3.2); }
+.k2-wrap { position: absolute; left: 0; right: 0; top: 13vh; padding: 0 var(--m); text-align: center; transform-origin: 50% 0; }
+.k2 { margin: 0 auto; max-width: none; font-size: var(--type-hook-size); line-height: 1.02; letter-spacing: var(--type-hook-tracking); text-wrap: nowrap; }
+.k2-line { display: block; }
+.k2-swap { display: inline-grid; vertical-align: bottom; }
+.k2-old { display: none; }
+.k2-new { grid-area: 1 / 1; }
+.scenes .k2-line { color: rgb(244 241 248 / .55); }
+.scenes .k2-line[data-swapped="true"] { color: var(--ink); }
+.scenes .k2-swap { width: var(--w-new, auto); clip-path: inset(0 -100vw); } /* final width from the start; clips only top/bottom */
+/* FLIP (no layout animation): before the swap the rest of the line sits --k2-d to the right (the extra width of
+   "Sometimes") and a centred line is pulled left by half of it; the swap slides both back to 0 */
+.scenes .k2-rest { display: inline-block; transform: translateX(var(--k2-d, 0px)); transition: transform .42s var(--ease-out); }
+.scenes .k2-line { transform: translateX(calc(var(--k2-d, 0px) * -.5)); transition: color .42s ease, transform .42s var(--ease-out); }
+.scenes .k2-line[data-swapped="true"], .scenes .k2-line[data-swapped="true"] .k2-rest { transform: none; }
+.scenes .k2-old, .scenes .k2-new { justify-self: start; }
+.scenes .k2-old { display: block; grid-area: 1 / 1; white-space: nowrap; transition: transform .42s cubic-bezier(.4, 0, 1, 1), opacity .42s cubic-bezier(.4, 0, 1, 1), visibility .42s; }
+/* v4.6: the word not shown is also visibility: hidden once faded (the stacked spare word read as a 3rd line to the
+   taste inspector and to anything reading line boxes); visibility flips at the end of a fade-out, at the start of a fade-in */
+.scenes .k2-new { white-space: nowrap; transform: translateY(100%); opacity: 0; visibility: hidden; transition: transform .42s var(--ease-out) .36s, opacity .42s var(--ease-out) .36s, visibility 0s .78s; }
+.scenes .k2-line[data-swapped="true"] .k2-old { transform: translateY(-100%); opacity: 0; visibility: hidden; }
+.scenes .k2-line[data-swapped="true"] .k2-new { transform: none; opacity: 1; visibility: visible; transition: transform .42s var(--ease-out) .36s, opacity .42s var(--ease-out) .36s, visibility 0s .36s; }
+.office-quad { position: absolute; left: 0; right: 0; margin: 0 auto; top: 27vh; width: min(84vw, 60vh * 1.5); height: 60vh; }
+.office-fallback img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%;
+  -webkit-mask: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%); mask: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%); } /* taste-skill-ignore: ?btn=orbit is the owner's reference (conic + mask + dot grain), or a soft mask, not a fill */
+.gl-on .office-fallback { display: none; }
+.desk-tag { position: absolute; left: 0; top: 0; padding: 4px 9px; border-radius: 4px; background: var(--ground); font-size: var(--type-label-size); font-weight: 500; white-space: nowrap; opacity: 0; transition: opacity .3s ease; pointer-events: none; }
+.desk-tag[data-on="true"] { opacity: 1; }
+.balloon { position: absolute; left: 0; top: 0; transform: translate(-50%, calc(-100% - 26px)) translateY(8px); padding: 10px 14px; border-radius: 10px; background: var(--ground); color: var(--ink); font-weight: 500; font-size: 16px; line-height: 1.3; white-space: nowrap; opacity: 0; transition: opacity .3s ease, transform .3s var(--ease-out); pointer-events: none; }
+.balloon::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 22px; background: rgb(244 241 248 / .5); }
+.balloon[data-on="true"] { opacity: 1; transform: translate(-50%, calc(-100% - 26px)); }
+.balloon[data-on="true"]::after { animation: stem-pulse 1.8s ease-in-out infinite alternate; } /* the stem pulses; the text stays still */
+@keyframes stem-pulse { from { opacity: .35; } to { opacity: 1; } }
+.dayline { position: absolute; left: 8%; right: 8%; bottom: -34px; height: 30px; container-type: inline-size; opacity: 0; transition: opacity .3s ease; }
+.office-quad[data-days="on"] .dayline { opacity: 1; }
+.dayline-track, .dayline-lit { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: radial-gradient(circle, #2B2732 1.6px, transparent 2px) 0 50% / calc(100% / 90) 8px repeat-x; } /* taste-skill-ignore: a row of dots (the 90-day line / dot grain), not a gradient fill */
+.dayline-lit { background-image: radial-gradient(circle, #C9A2FF 1.6px, transparent 2px); clip-path: inset(0 100% 0 0); } /* taste-skill-ignore: a row of dots (the 90-day line / dot grain), not a gradient fill */
+.dayline-mark { position: absolute; left: 0; bottom: 12px; display: block; }
+.dayline-label { display: block; padding: 2px 7px; border-radius: 4px; background: var(--ground); font-size: var(--type-label-size); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.talk-seq { display: none; }
+.office-text { display: none; }
+.office-text .modelo { color: var(--ink-2); }
+/* static office (reduced, no JS): the final phrase, the day render with a soft edge, the list, the talk */
+:is(.reduced, .no-js) .office { height: auto; padding: clamp(104px, 12vw, 184px) 0 96px; }
+:is(.reduced, .no-js) .office-stage { position: static; height: auto; overflow: visible; }
+:is(.reduced, .no-js) .k2-wrap { position: static; transform: none; }
+:is(.reduced, .no-js) .k2 { font-size: var(--type-h2-size); text-wrap: balance; }
+:is(.reduced, .no-js) .office-quad { position: relative; top: 0; margin-top: 40px; height: auto; aspect-ratio: 1440 / 1000; width: min(100% - 2 * var(--m), 1100px); }
+:is(.reduced, .no-js) .office-quad .office-fallback img { height: 100%; }
+:is(.reduced, .no-js) .office-quad > :not(.office-fallback) { display: none; }
+:is(.reduced, .no-js) .office-fallback { display: block; }
+:is(.reduced, .no-js) .talk-seq { display: none; } /* v4.6: the live exchange (phone) sat on top of the 90-day list; the static list below already has the talk */
+:is(.reduced, .no-js) .office-text { display: grid; gap: 18px; max-width: 760px; margin: 32px auto 0; padding: 0 var(--m); }
+.desk-list, .talk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.desk-list { grid-template-columns: repeat(3, auto); justify-content: start; column-gap: 32px; }
+
+/* you (§4.4/§4.5): the phone is the vertex of the network; the H2 splits on its flanks */
+.you { position: relative; height: calc(var(--tela) * 3.3); } /* v4.2: 2.6 + 0.4 (the finale) + 0.3 (T5, the silence) */
+.you-h { position: absolute; left: var(--m); right: var(--m); top: 30vh; max-width: none; display: flex; justify-content: space-between; pointer-events: none; }
+.you-h span { display: block; max-width: 5.6em; }
+.you-a { margin-right: .25em; }
+.you-b { text-align: right; opacity: .45; transition: opacity .3s ease-out; }
+.you-b[data-k4="on"] { opacity: 1; }
+.phone { position: absolute; left: 50%; top: 7vh; width: 340px; margin-left: -170px; padding: 10px; border-radius: 36px; background: var(--surface); }
+.screen { min-height: 436px; padding: 22px 18px 14px; border-radius: 28px; background: #0D0B11; display: flex; flex-direction: column; }
+.order { display: grid; gap: 10px; transition: opacity .5s var(--ease-out), transform .5s var(--ease-out); }
+.order[data-in="false"] { opacity: 0; transform: translateY(18px); }
+.phone[data-state="sent"] .order .preview, .phone[data-state="declined"] .order .preview { opacity: .5; }
+.order .top { color: var(--ink-2); font-size: var(--type-label-size); font-weight: 500; }
+.ask { font: 500 18px/1.3 var(--font-text); }
+.why { color: var(--ink-2); font-size: 15px; line-height: 1.4; }
+.preview { padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 15px; line-height: 1.4; transition: opacity .3s ease; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.approve { position: relative; grid-column: 1 / -1; height: 52px; }
+.approve-base, .approve-fill { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+/* each layer is its own stacking context: the base label (z-index 1 inside .btn) must never paint over the fill */
+.approve-base { z-index: 0; }
+.approve-fill { z-index: 1; }
+.approve .approve-base.btn { background: #2B2732; color: rgb(244 241 248 / .6); cursor: default; animation: none; box-shadow: none; }
+.approve-fill { cursor: default; clip-path: inset(0 calc((1 - var(--fill, 0)) * 100%) 0 0); }
+.decline { position: relative; isolation: isolate; overflow: hidden; }
+.decline-fill { position: absolute; inset: 0; z-index: -1; background: #3A3542; clip-path: inset(0 calc((1 - var(--fill, 0)) * 100%) 0 0); }
+.phone-status { margin-top: auto; padding-top: 12px; min-height: 2.8em; color: var(--ink-2); font-size: 15px; }
+.clear { margin: auto 0; font: 500 18px/1.3 var(--font-text); }
+/* brief-v4.2 §6, "end of shift": ring of energy (≤ 600 ms, the only green) → the screen fills bottom-up with the
+   button's silk (the lilac Núcleo: a phone-sized mint fill would break the ≤ 1.5 % green rule) → a column the
+   width of the phone leaves through the top (850 ms, 1-(1-t)²) → the lock screen. Replays only going forward. */
+.phone { transform: scale(calc(1 - .08 * var(--rec, 0))); opacity: calc(1 - .4 * var(--rec, 0)); }
+.phone-energy, .phone-colw { position: absolute; pointer-events: none; display: none; }
+.phone[data-state="clear"] :is(.phone-energy, .phone-colw) { display: block; }
+.phone-energy { inset: -14px; padding: 14px; border-radius: 50px; opacity: 0;
+  background: repeating-conic-gradient(var(--mint) 0 25%, transparent 0 50%) 0 0 / 4px 4px; /* taste-skill-ignore: a 4-px checker (Bayer dither of the energy / the light), not a gradient fill */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); /* taste-skill-ignore: hard-stop masks that cut the dither into a disc / a ring, not a fill */
+  animation: energy .6s steps(6, end) forwards; }
+@keyframes energy { 0% { opacity: 0; } 15%, 80% { opacity: .55; } 50% { opacity: .35; } 100% { opacity: 0; } }
+.phone-colw { left: 10px; right: 10px; bottom: calc(100% - 10px); height: 110vh; overflow: hidden; }
+.phone-col { position: absolute; left: 0; right: 0; bottom: 0; height: 42vh; transform: translateY(100%);
+  background: repeating-conic-gradient(#FBF7FF 0 25%, #C9A2FF 0 50%) 0 0 / 4px 4px; animation: col-up .85s cubic-bezier(.33, 1, .68, 1) .6s forwards; } /* taste-skill-ignore: a 4-px checker (Bayer dither of the energy / the light), not a gradient fill */
+@keyframes col-up { 0% { transform: translateY(100%); opacity: 1; } 85% { opacity: 1; } 100% { transform: translateY(-262%); opacity: 0; } }
+.lock { position: relative; flex: 1; display: grid; grid-template-rows: 1fr auto auto 1.4fr; justify-items: center; text-align: center; gap: 14px; }
+.lock-fill { position: absolute; inset: -22px -18px -14px; border-radius: 28px; /* v4.5: silk-wall.png is periodic by construction (docs/redesign/proto-v45/tools/silk-wall.py); the 240-px button silk repeated here showed a seam */ background: #C9A2FF url(./assets/silk-wall.png) 50% 0 / 480px 192px; image-rendering: pixelated; clip-path: inset(100% 0 0 0); animation: lock-fill .3s cubic-bezier(.45, 0, .2, 1) .6s forwards, settle .3s steps(3, end) 1.45s forwards; }
+@keyframes lock-fill { to { clip-path: inset(0); } }
+/* v4.3: the screen stays lit after the column (the silk settles at 24 %): the finale ends luminous, not off */
+@keyframes settle { to { opacity: .24; } }
+.phone[data-state="clear"] { background: #2A1F3A; }
+.phone[data-state="clear"] ~ .net-tag { opacity: 0; }
+.lock > p { position: relative; opacity: 0; animation: on .3s var(--ease-out) 1.5s forwards; }
+@keyframes on { to { opacity: 1; } }
+.lock-time { grid-row: 2; font: 400 56px/1 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.lock-status { grid-row: 3; font: 500 18px/1.35 var(--font-text); }
+.lock-sum { grid-row: 4; align-self: start; color: var(--ink-2); font-size: 13px; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.lock-mini .lock { min-height: 260px; }
+.lock-mini .lock > p { opacity: 1; animation: none; }
+.lock-mini .lock-fill { display: none; }
+.net-tag { position: absolute; left: 0; top: 0; padding: 4px 9px; border-radius: 4px; background: var(--ground); font-size: var(--type-label-size); font-weight: 500; white-space: nowrap; pointer-events: none; display: none; }
+.gl-on .net-tag { display: block; }
+.phone-static { display: none; }
+:is(.reduced, .no-js) .you { height: auto; padding: clamp(104px, 12vw, 184px) var(--m) 96px; }
+:is(.reduced, .no-js) .you-stage { position: static; height: auto; overflow: visible; }
+:is(.reduced, .no-js) .you-stage > :not(.you-h) { display: none; }
+:is(.reduced, .no-js) .you-h { position: static; display: block; }
+:is(.reduced, .no-js) .you-h span { display: inline; max-width: none; opacity: 1; }
+:is(.reduced, .no-js) .phone-static { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gut); margin-top: 40px; }
+.phone-mini { display: grid; gap: 10px; align-content: start; padding: 20px; border-radius: 24px; background: var(--surface); }
+
+/* faq (§4.8): balloons on the logo's field, a sticky title, a reading cursor; nothing ever overlaps */
+.faq { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gut); min-height: calc(var(--tela) * 1.6); }
+.faq-head { grid-column: 1 / span 4; }
+.faq-head h2 { position: sticky; top: 16vh; }
+.faq-list { grid-column: 5 / span 8; list-style: none; margin: 0; padding: 6vh 0 6vh; display: grid; gap: 7vh; container-type: inline-size; }
+.faq-item { position: relative; width: min(47%, 430px); padding: 4px 4px 14px; border-radius: 14px; background: var(--ground); }
+.faq-item[data-side="l"] { justify-self: start; }
+.faq-item[data-side="r"] { justify-self: end; }
+.faq-item::before { content: ""; position: absolute; top: 30px; height: 1px; width: calc(50cqw - 100%); background: rgb(244 241 248 / .2); } /* taste-skill-ignore: the 1 px stem that ties a question to its point (brief-v4.1 §4.8) */
+.faq-item[data-side="l"]::before { left: 100%; }
+.faq-item[data-side="r"]::before { right: 100%; }
+.faq-q { display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 52px; padding: 14px 14px 6px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); text-align: left; font: 500 18px/1.35 var(--font-text); cursor: pointer; }
+.faq-dot { flex: none; width: 6px; height: 6px; margin-top: .55em; background: #C9A2FF; transition: background-color .24s ease; }
+.faq-a { padding: 2px 14px 0 32px; color: var(--ink-2); font-size: 16px; line-height: 1.5; transition: opacity .24s ease, transform .24s var(--ease-out); }
+[data-cursor="on"] .faq-item[data-state="ahead"] .faq-q { color: rgb(244 241 248 / .82); }
+[data-cursor="on"] .faq-item[data-state="ahead"] .faq-dot { background: #3A3542; }
+[data-cursor="on"] .faq-item[data-state="ahead"] .faq-a { opacity: 0; transform: translateY(6px); }
+[data-cursor="on"] .faq-item[data-state="done"] .faq-a { opacity: .7; }
+
+/* final (§4.7): the logo assembles above the H2; the question forms with it (K5); no cone */
+.final { display: grid; justify-items: center; text-align: center; padding-top: clamp(48px, 6vw, 96px); padding-bottom: 150px; }
+.final-logo { width: calc(22vh * 30 / 28); height: 22vh; margin-bottom: 48px; }
+.final-tri-fallback { display: block; width: 100%; height: 100%; }
+.gl-on .final-tri-fallback { display: none; }
+.final h2 { position: relative; z-index: 1; max-width: none; }
+.k5-w { display: inline-block; white-space: pre; opacity: var(--on, 1); transform: translateY(calc((1 - var(--on, 1)) * .4em)); }
+.scenes .k5-w { --on: 0; }
+.k5-q { transition: opacity .18s ease; }
+.scenes .k5[data-q="false"] .k5-q { opacity: 0; }
+.final .lead { position: relative; z-index: 1; width: 100%; max-width: 640px; margin-top: 40px; text-align: left; }
+.lead.compact .blocks { grid-template-columns: repeat(2, 1fr); }
+.final .submit { justify-items: center; text-align: center; }
+
+/* footer (v4.5, owner's reference footers-elegantes.png): thin columns of links, then the landscape: the logo as a
+   mountain of points (footPeak.ts) standing on the giant wordmark, cut into the same dither as the light */
+.foot { position: relative; z-index: 1; overflow: hidden; padding: clamp(72px, 9vw, 128px) var(--m) 0; color: var(--ink-2); font-size: 15px; }
+.foot-cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--gut); }
+.foot-h { margin-bottom: 14px; font: 500 12px/1 var(--font-text); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.foot-col ul { margin: 0; padding: 0; list-style: none; display: grid; justify-items: start; }
+.foot-col a { min-height: 40px; display: inline-flex; align-items: center; color: var(--ink); text-decoration: none; text-underline-offset: 4px; }
+.foot-col a:hover { text-decoration: underline; }
+.foot-live, .foot-dim { min-height: 40px; display: flex; align-items: center; font-size: 13px; letter-spacing: .02em; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.foot-live { text-wrap: balance; }
+.foot-note { min-height: 0; padding-top: 10px; max-width: 26ch; line-height: 1.45; }
+.foot-land { --peak-base: .62; position: relative; height: clamp(360px, 46vw, 700px); margin: clamp(40px, 6vw, 88px) calc(-1 * var(--m)) 0; }
+.foot-peak { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* the wordmark is the ground the mountain stands on: brand-purple dither, its density falling in 4 hard steps. v4.6
+   (owner: "too dark, it almost disappears behind the mountain"): brighter checker, gentler steps, and it sits ABOVE
+   the canvas, whose foot now stands on the cap line (footPeak.ts measures it), so no dot covers a letter */
+.foot-word { z-index: 1; position: absolute; left: 0; right: 0; bottom: 0; margin: 0; text-align: center; font: 400 24.4vw/1 var(--font-display); font-stretch: 87.5%; letter-spacing: -.035em; white-space: nowrap;
+  color: transparent; background: repeating-conic-gradient(#9232EA 0 25%, #2B1650 0 50%) 0 0 / 4px 4px; -webkit-background-clip: text; background-clip: text; /* taste-skill-ignore: a 4-px checker (Bayer dither of the light) clipped to the letters, not a gradient fill */
+  -webkit-mask: linear-gradient(#000 0 34%, rgb(0 0 0 / .86) 34% 52%, rgb(0 0 0 / .7) 52% 68%, rgb(0 0 0 / .54) 68%); mask: linear-gradient(#000 0 34%, rgb(0 0 0 / .86) 34% 52%, rgb(0 0 0 / .7) 52% 68%, rgb(0 0 0 / .54) 68%); } /* taste-skill-ignore: four hard-stop density levels of the dither, not a gradient fill */
+.foot-copy { position: relative; padding: 18px 0 28px; font-size: 13px; letter-spacing: .02em; }
+.no-js .foot-peak { display: none; }
+
+/* poster capture mode (?poster=1): only the canvas */
+.poster-mode #root { visibility: hidden; }
+
+/* ---------- tablet: the form split needs ≥ 1024 px to keep 4 revenue blocks legible */
+@media (max-width: 1023px) {
+  .form-sec { grid-template-columns: 1fr; }
+  .form-copy, .form-sec .lead { grid-column: 1 / -1; }
+  .form-sec .lead { margin-top: 36px; max-width: 640px; }
+}
+
+/* ---------- phone (390) */
+@media (max-width: 767px) {
+  .bar { height: 56px; }
+  .hero { padding-top: 104px; }
+  .lede { max-width: 26ch; }
+  .form-sec, .faq { grid-template-columns: 1fr; }
+  .form-copy, .form-sec .lead, .faq-head, .faq-list { grid-column: 1 / -1; }
+  .form-sec .lead { margin-top: 36px; }
+  .lead { grid-template-columns: 1fr; }
+  .blocks, .lead.compact .blocks { grid-template-columns: 1fr 1fr; }
+  .horizon { bottom: 40px; left: 25%; right: 25%; }
+  .night { height: calc(var(--tela) * 1.2); }
+  .moon-path { left: 52%; right: 30px; top: 172px; height: 56px; }
+  .moon svg { width: 26px; height: 26px; }
+  .moon { left: -13px; top: -13px; grid-auto-flow: column; align-items: center; }
+  .shift-office { left: var(--m); right: var(--m); width: auto; top: 270px; bottom: auto; }
+  .desks { grid-template-columns: repeat(3, 1fr); row-gap: 14px; margin-top: 10px; }
+  .desk:nth-child(-n+3) { padding-left: 0; }
+  .desk:nth-child(-n+3) .fig { width: 48px; height: 48px; }
+  .fig { width: 48px; height: 48px; }
+  .beam { height: 48px; }
+  .desks { row-gap: 14px; margin-top: 10px; }
+  .dname { font-size: 13px; }
+  .dname .long { display: none; }
+  .dname .short { display: inline; }
+  .dtask { font-size: 12px; white-space: normal; max-width: 13ch; }
+  .home { left: var(--m); right: var(--m); width: auto; top: auto; bottom: 28px; padding: 14px 0 0; border-left: 0; border-top: 1px solid rgb(244 241 248 / .08); grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 16px; row-gap: 4px; align-items: center; } /* taste-skill-ignore: brief-v4.2 §5.4, the Office/Home wire turns horizontal at 390 */
+  .home .place { grid-row: 1 / 3; align-self: start; }
+  .sleeper { width: 112px; height: 56px; margin-top: 0; }
+  .office { height: calc(var(--tela) * 2.6); }
+  .k2-wrap { top: 76px; text-align: left; }
+  /* v4.6 (owner: the phrase stays "Never asks for a raise."): sized to the column so the agent line holds one line down
+     to 360 (measured 344 px of 350 at 390, 318 of 320 at 360, both engines); only line 1 plays the human → agent swap
+     on a phone, because the human form "Sometimes asks for a raise." cannot fit one line there */
+  .k2 { font-size: min(44px, 11.1vw); text-wrap: balance; }
+  .scenes .k2-line { transform: none; } /* left-aligned at 390: only the rest of the line moves */
+  .scenes [data-k2-line="1"] .k2-old { display: none; }
+  .scenes [data-k2-line="1"] .k2-new, .scenes [data-k2-line="1"] .k2-rest { transform: none; opacity: 1; visibility: visible; transition: none; }
+  .office-quad { top: 300px; width: calc(100% - 2 * var(--m)); height: min(52svh, 440px); }
+  .balloon { display: none; }
+  .dayline { left: 4%; right: 4%; }
+  .talk-seq { display: block; position: absolute; left: var(--m); right: var(--m); top: calc(300px + min(52svh, 440px) + 44px); list-style: none; margin: 0; padding: 0; }
+  .talk-seq li { display: none; font-size: 16px; font-weight: 500; }
+  .talk-seq li[data-on="true"] { display: grid; gap: 2px; }
+  .who { color: var(--ink-2); font-size: var(--type-label-size); }
+  .desk-list { grid-template-columns: 1fr 1fr; }
+  .you { height: calc(var(--tela) * 2.8); }
+  .foot-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 32px; }
+  .foot-land { --peak-base: .76; height: 112vw; }
+  /* v4.3 green dose on a phone (≤ 1.5 % of the screen): the field button keeps its silk only as a 3-px rim, the
+     label and arrow in mint on the dark; compact 44 px. The phone's Approve fill keeps the full material. */
+  .btn-field .btn:not(.approve-base):not(.approve-fill):not(:disabled) { min-height: 44px; padding: 0 16px 0 18px; border: 3px solid transparent; color: var(--mint); background: linear-gradient(#0E0D12, #0E0D12) padding-box, #58F6B1 url(./assets/silk-mint.png) 0 0 / 240px 96px border-box; } /* taste-skill-ignore: a flat dark fill clipped to the padding box over the silk rim, not a gradient */
+  .lock-time { font-size: 44px; }
+  .you-h { top: 68px; display: block; }
+  .you-h span { display: inline; max-width: none; }
+  .you-b { text-align: left; }
+  .phone { top: calc(68px + 2.3em + 70px); width: 300px; margin-left: -150px; padding: 8px; border-radius: 32px; }
+  .screen { min-height: 0; height: 410px; padding: 18px 14px 10px; border-radius: 26px; }
+  .why { display: none; }
+  :is(.reduced, .no-js) .phone-static { grid-template-columns: 1fr; }
+  .faq-head h2 { position: static; }
+  .faq-list { padding: 32px 0 12vh; gap: 40px; }
+  .faq-item, .faq-item[data-side] { justify-self: stretch; width: auto; margin-left: 24px; }
+  .faq-item::before, .faq-item[data-side]::before { left: auto; right: 100%; width: 24px; }
+  .final-logo { width: 129px; height: 120px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}

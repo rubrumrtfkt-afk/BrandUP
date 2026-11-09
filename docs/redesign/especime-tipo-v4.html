@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BrandUp v4 — espécime tipográfico (Mona Sans)</title>
+<!-- Só a fonte do LCP (o H1) é pré-carregada. -->
+<link rel="preload" href="fonts-v4/bu-display.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* ===== Fontes: Mona Sans (OFL 1.1), instanciada e subconjunto latin; renomeada por causa do Reserved Font Name ===== */
+@font-face{font-family:"BU Display";src:url(fonts-v4/bu-display.woff2) format("woff2");font-weight:300 400;font-stretch:87.5%;font-display:swap}
+@font-face{font-family:"BU Text";src:url(fonts-v4/bu-text.woff2) format("woff2");font-weight:400 500;font-stretch:100%;font-display:swap}
+/* Fallbacks métricos medidos contra Arial (largura média do gancho + apoio; métricas verticais da Mona: asc 1090, desc 320, upm 1000) */
+@font-face{font-family:"BU Display Fallback";src:local("Arial"),local("Helvetica Neue"),local("Roboto");size-adjust:85%;ascent-override:128.2%;descent-override:37.6%;line-gap-override:0%}
+@font-face{font-family:"BU Text Fallback";src:local("Arial"),local("Helvetica Neue"),local("Roboto");size-adjust:103.4%;ascent-override:105.4%;descent-override:30.9%;line-gap-override:0%}
+/* Só para a comparação (descartada): Hubot Sans, mesma largura e peso */
+@font-face{font-family:"BU Compare";src:url(fonts-v4/bu-compare-hubot.woff2) format("woff2");font-weight:300 400;font-stretch:87.5%;font-display:swap}
+
+:root{
+  /* cor (papéis do brief v4 §2.3; valores finais com o frontend-studio) */
+  --ground:#08070B; --ink:#F4F1F8; --ink-2:#B7B4BB; --brand:#9232EA;
+  --light-deep:#1A0B33; --light-hot:#C9A2FF; --light-core:#FBF7FF;
+
+  /* famílias */
+  --font-display:"BU Display","BU Display Fallback",system-ui,sans-serif;
+  --font-text:"BU Text","BU Text Fallback",system-ui,sans-serif;
+
+  /* 1. H1, o gancho: 40 px a 390 → 104 px a 1440; abaixo de 390 escala por vw para manter 2 linhas a 360 */
+  --type-hook-size:clamp(2.25rem, min(10.25vw, 1.014rem + 6.095vw), 6.5rem);
+  --type-hook-weight:340; --type-hook-stretch:87.5%; --type-hook-leading:0.94;
+  --type-hook-tracking:calc(0.0125rem - 0.2667vw);         /* −0,84 px a 390 (−2,1%) → −3,64 px a 1440 (−3,5%) */
+
+  /* 2. O número dos 90 dias: 48 → 88 px */
+  --type-number-size:clamp(3rem, 2.071rem + 3.81vw, 5.5rem);
+  --type-number-weight:300; --type-number-leading:0.9; --type-number-tracking:-0.03em;
+
+  /* 3. H2: 30 → 56 px */
+  --type-h2-size:clamp(1.875rem, 1.271rem + 2.476vw, 3.5rem);
+  --type-h2-weight:400; --type-h2-leading:1.0; --type-h2-tracking:-0.025em;
+
+  /* 4. Texto: 16 → 18 px (pergunta do FAQ = mesmo tamanho, peso 500) */
+  --type-body-size:clamp(1rem, 0.954rem + 0.19vw, 1.125rem);
+  --type-body-leading:1.5; --type-body-measure:60ch;
+
+  /* 5. Rótulo de dado: 13 → 14 px, peso 500, tabular */
+  --type-label-size:clamp(0.8125rem, 0.789rem + 0.095vw, 0.875rem);
+  --type-label-leading:1.3; --type-label-tracking:0.005em;
+}
+
+*{box-sizing:border-box;margin:0}
+html{background:var(--ground);color:var(--ink);-webkit-text-size-adjust:100%}
+body{font-family:var(--font-text);font-size:var(--type-body-size);line-height:var(--type-body-leading);font-kerning:normal;text-rendering:optimizeLegibility}
+.wrap{padding-inline:clamp(20px, 4.4vw, 64px)}
+
+/* papéis */
+.hook{font-family:var(--font-display);font-size:var(--type-hook-size);font-weight:var(--type-hook-weight);font-stretch:var(--type-hook-stretch);
+  line-height:var(--type-hook-leading);letter-spacing:var(--type-hook-tracking);hyphens:manual;max-width:8.7em}
+.number{font-family:var(--font-display);font-size:var(--type-number-size);font-weight:var(--type-number-weight);font-stretch:87.5%;
+  line-height:var(--type-number-leading);letter-spacing:var(--type-number-tracking);font-variant-numeric:normal /* figuras proporcionais; o tnum da Mona é o desenho do Mona Mono (0 cortado, 1 com serifa) e fica proibido */}
+.h2{font-family:var(--font-display);font-size:var(--type-h2-size);font-weight:var(--type-h2-weight);font-stretch:87.5%;
+  line-height:var(--type-h2-leading);letter-spacing:var(--type-h2-tracking);text-wrap:balance;max-width:14ch}
+.body{max-width:var(--type-body-measure);text-wrap:pretty}
+.q{font-weight:500}
+.label{font-size:var(--type-label-size);font-weight:500;line-height:var(--type-label-leading);letter-spacing:var(--type-label-tracking);font-variant-numeric:normal}
+.note{font-size:13px;line-height:1.4;color:var(--ink-2);max-width:62ch}
+
+/* hero com a aproximação da luz: roxo pontilhado à direita, o H1 no escuro */
+.hero{position:relative;min-height:min(100svh,900px);overflow:hidden;isolation:isolate}
+.hero::before{content:"";position:absolute;inset:0;z-index:-1;
+  background:
+    radial-gradient(60% 70% at 82% 62%, var(--light-core) 0%, var(--light-hot) 9%, var(--brand) 24%, var(--light-deep) 52%, transparent 72%);
+  -webkit-mask:radial-gradient(circle, #000 0.9px, transparent 1.3px) 0 0/4px 4px;
+          mask:radial-gradient(circle, #000 0.9px, transparent 1.3px) 0 0/4px 4px}
+.hero::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(55% 60% at 82% 62%, rgba(146,50,234,.16), transparent 70%)}
+nav{display:flex;justify-content:space-between;align-items:center;height:72px}
+.mark{display:flex;gap:10px;align-items:center;font-weight:500;font-size:18px}
+.btn{display:inline-flex;align-items:center;min-height:48px;padding:0 22px;border-radius:999px;background:var(--brand);color:#fff;
+  font:500 16px/1 var(--font-text);text-decoration:none}
+.btn.sm{min-height:40px;padding:0 16px;font-size:15px}
+.hero-copy{padding-top:clamp(28px,6vw,96px)}
+.hero-copy .body{margin-top:28px;max-width:34ch}
+.hero-copy .btn{margin-top:28px}
+.hero-copy .proof{margin-top:20px;color:var(--ink-2)}
+
+section{padding-block:clamp(72px,9vw,140px)}
+.row{display:grid;grid-template-columns:repeat(12,1fr);gap:24px;align-items:end}
+.c5{grid-column:span 5}.c7{grid-column:span 7}.c4{grid-column:span 4}.c8{grid-column:span 8}
+.stack>*+*{margin-top:24px}
+.labels{display:flex;flex-wrap:wrap;gap:12px 32px}
+.counts{display:flex;gap:40px;align-items:baseline}
+.numbox{display:inline-block;min-width:1.04em;text-align:left} /* a caixa do contador tem a largura do par mais largo (00 = 1,03 em): o vizinho não pula */
+.glyphs{font-family:var(--font-display);font-weight:340;font-stretch:87.5%;font-size:clamp(40px,7vw,96px);line-height:1;letter-spacing:-0.02em}
+.light{background:var(--ink);color:var(--ground)}
+.light .note{color:#55525A}
+.compare .hook{font-family:"BU Compare",var(--font-display)}
+@media (max-width:767px){
+  .row{grid-template-columns:1fr}.c5,.c7,.c4,.c8{grid-column:auto}
+  .hero{min-height:auto;padding-bottom:46svh}
+  .hero::before,.hero::after{background-position:0 0}
+  .hero::before{background:radial-gradient(90% 32% at 60% 86%, var(--light-core) 0%, var(--light-hot) 9%, var(--brand) 26%, var(--light-deep) 55%, transparent 75%)}
+  nav{height:56px}
+  .counts{gap:20px}
+}
+</style>
+</head>
+<body>
+
+<header class="hero wrap" data-probe="hero">
+  <nav aria-label="Main">
+    <span class="mark"><svg width="22" height="20" viewBox="0 0 22 20" aria-hidden="true"><path d="M11 0 22 20H0z" fill="#9232EA"/><path d="M11 7l4 7H7z" fill="#fff"/></svg>BrandUp</span>
+    <a class="btn sm" href="#form">Diagnosis</a>
+  </nav>
+  <div class="hero-copy">
+    <h1 class="hook" data-probe="h1">Over $250K per&nbsp;month within 90&nbsp;days.</h1>
+    <p class="body">An office of AI agents that answers, quotes and chases. You approve every move.</p>
+    <a class="btn" href="#form">Build my AI office</a>
+    <p class="label proof">A$10M+ generated for clients (if proven)</p>
+  </div>
+</header>
+
+<main>
+<section class="wrap">
+  <div class="row">
+    <div class="c7 stack">
+      <h2 class="h2" data-probe="h2">While you sleep, they work.</h2>
+      <div class="labels" aria-label="Night labels">
+        <span class="label">02:14 · Quote request · Perth</span>
+        <span class="label">03:40 · Invoice chased</span>
+        <span class="label">05:12 · PO matched · $18,450</span>
+        <span class="label">06:55 · Follow-up sent</span>
+      </div>
+    </div>
+    <div class="c5 stack">
+      <p class="body">Texto a 16–18 px, peso 400, entrelinha 1,5, medida de 60 caracteres. The agents take the enquiry at 2:14 am, draft the quote, and leave it on your desk. Nothing goes out until you say yes.</p>
+      <p class="note">Copy provisória para medir; o texto final é do copy-director. Rótulo de dado: 13–14 px, 500, figuras proporcionais, caixa normal, sem mono.</p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="row">
+    <div class="c8">
+      <p class="number" data-probe="number" aria-label="Day 34 of 90">Day <span class="numbox">34</span></p>
+      <div class="counts number" style="font-size:clamp(28px,4vw,56px);margin-top:16px" aria-hidden="true"><span class="numbox">08</span><span class="numbox">34</span><span class="numbox">71</span><span class="numbox">11</span></div>
+      <p class="note" style="margin-top:12px">Figuras proporcionais da Mona (o tnum dela troca para o desenho do Mona Mono, com 0 cortado, e está proibido). Cada número mora numa caixa de 1,04 em, a largura do par mais largo: o “11” e o “08” ocupam o mesmo lugar e a contagem 0 → 90 não empurra nada.</p>
+    </div>
+    <div class="c4 stack">
+      <h2 class="h2">Your office in 90 days.</h2>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="row">
+    <div class="c5"><h2 class="h2">Questions, answered.</h2></div>
+    <div class="c7 stack">
+      <div><p class="body q">Does anything go out without me?</p>
+      <p class="body" style="color:var(--ink-2)">No. Every quote, email and invoice waits on your desk until you approve it. You can edit it first or send it back.</p></div>
+      <div><p class="body q">What does it cost per month?</p>
+      <p class="body" style="color:var(--ink-2)">A fixed monthly fee from $4,900, agreed after the diagnosis. Placeholder price for measurement only.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <p class="glyphs" aria-label="Glyph test">$250K A V W K 90 —</p>
+  <p class="glyphs" aria-hidden="true" style="margin-top:12px">0123456789 $ A$</p>
+  <p class="note" style="margin-top:16px">Ápice do A e vértice do V em ponta (o diálogo com o triângulo do logo); o “$” atravessado e os algarismos de proporção estreita a 87,5% de largura.</p>
+</section>
+
+<section class="wrap light" data-probe="light">
+  <div class="row">
+    <div class="c7"><h2 class="h2">The last word is yours.</h2></div>
+    <div class="c5"><p class="body">Prova em fundo claro (caso a seção da maquete use o tom de estúdio). Texto em ground sobre ink: Lc 102.</p></div>
+  </div>
+</section>
+
+<section class="wrap compare">
+  <h2 class="hook" style="font-size:clamp(2.25rem, min(10.25vw, 1.014rem + 6.095vw), 6.5rem)">Over $250K per&nbsp;month within 90&nbsp;days.</h2>
+  <p class="note" style="margin-top:16px">Descartada: Hubot Sans (a irmã chanfrada da Mona), mesma largura e peso. Os cantos cortados viram “fonte temática” (B9) ao lado da luz.</p>
+</section>
+</main>
+</body>
+</html>

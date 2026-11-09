@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BrandUp — especime de tipografia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Montserrat:wght@400;500;700;800;900&family=Geist+Mono:wght@500;600&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --ink-950: #060409;
+    --ink-900: #0f0a16;
+    --ink-850: #151020;
+    --ink-800: #1b1428;
+    --brand-500: #9232ea;
+    --brand-300: #b99cff;
+    --brand-deep: #2a1150;
+    --accent-400: #58f6b1;
+    --text-1: #f4f0fa;
+    --text-2: #b3adbc;
+    --text-3: #8a8494;
+    --line-hairline: rgba(244, 240, 250, 0.08);
+    --line-strong: rgba(244, 240, 250, 0.14);
+    --status-attention: #ffb547;
+    --status-error: #ff5c6c;
+
+    /* Type tokens — ver docs/redesign/tipografia.md */
+    --font-display: "Barlow Condensed", "Montserrat", system-ui, sans-serif;
+    --font-base: "Montserrat", system-ui, sans-serif;
+    --font-mono: "Geist Mono", "SFMono-Regular", ui-monospace, monospace;
+
+    --fs-display-hook: clamp(1.875rem, 1.3643rem + 2.0952vw, 3.25rem);
+    --fs-display-section: clamp(1.875rem, 1.55rem + 1.3333vw, 2.75rem);
+    --fs-body-lead: clamp(1.125rem, 1.0786rem + 0.1905vw, 1.25rem);
+    --fs-body: 1.0625rem;
+    --fs-small: 0.875rem;
+    --fs-mono-label: clamp(0.6875rem, 0.6643rem + 0.0952vw, 0.75rem);
+    --fs-mono-data: clamp(0.75rem, 0.7268rem + 0.0952vw, 0.8125rem);
+    --fs-numeral: clamp(1.75rem, 1.4714rem + 1.1429vw, 2.5rem);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ink-950);
+    color: var(--text-1);
+    font-family: var(--font-base);
+  }
+
+  body.theme-light {
+    background: #f4f0fa;
+    color: #150f1e;
+  }
+  body.theme-light .panel { background: #ffffff; border-color: rgba(21,15,30,.1); }
+  body.theme-light .mono-chip { background: rgba(21,15,30,.06); }
+
+  main { max-width: 1296px; margin: 0 auto; padding: 48px 20px 96px; }
+  @media (min-width: 1024px) { main { padding: 72px 72px 160px; } }
+
+  section.role { padding: 32px 0; border-bottom: 1px solid var(--line-hairline); }
+  section.role:first-of-type { padding-top: 0; }
+
+  .role-label {
+    font-family: var(--font-mono);
+    font-size: var(--fs-mono-label);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--brand-300);
+    margin: 0 0 12px;
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  .role-label .meta { color: var(--text-3); letter-spacing: 0.02em; text-transform: none; font-weight: 500; }
+
+  /* display.hook */
+  .hook-wrap { width: 358px; max-width: 100%; border: 1px dashed var(--line-strong); padding: 0; }
+  @media (min-width: 1024px) { .hook-wrap { width: 1076px; } }
+  h1.hook {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: var(--fs-display-hook);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+  }
+  @media (min-width: 1024px) { h1.hook { line-height: 1.08; letter-spacing: -0.02em; } }
+  .hook mark { background: var(--brand-500); color: var(--text-1); padding: 0 0.15em; border-radius: 2px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+
+  /* display.section */
+  h2.section-title {
+    font-family: var(--font-base);
+    font-weight: 500;
+    font-size: var(--fs-display-section);
+    line-height: 1.15;
+    letter-spacing: -0.005em;
+    margin: 0 0 16px;
+  }
+  @media (min-width: 1024px) { h2.section-title { line-height: 1.1; } }
+  h2.section-title strong { font-weight: 700; color: var(--brand-300); }
+
+  /* body */
+  p.lead { font-size: var(--fs-body-lead); line-height: 1.5; color: var(--text-2); max-width: 46ch; margin: 0 0 12px; }
+  p.body { font-size: var(--fs-body); line-height: 1.55; color: var(--text-2); max-width: 60ch; margin: 0 0 12px; hyphens: auto; }
+  p.small { font-size: var(--fs-small); line-height: 1.45; color: var(--text-3); max-width: 60ch; margin: 0; }
+
+  /* mono.data */
+  .mono-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .mono-chip {
+    font-family: var(--font-mono);
+    font-size: var(--fs-mono-data);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-variant-numeric: tabular-nums;
+    background: var(--ink-850);
+    border: 1px solid var(--line-hairline);
+    border-radius: 4px;
+    padding: 6px 10px;
+    color: var(--text-1);
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .mono-chip .led { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-400); display: inline-block; }
+  .mono-chip.attention { color: var(--status-attention); }
+  .mono-chip.error { color: var(--status-error); }
+
+  /* numeral.stat */
+  .stats { display: flex; gap: 32px; margin-top: 16px; flex-wrap: wrap; }
+  .stat { border-left: 1px solid var(--line-strong); padding-left: 16px; }
+  .stat .value {
+    font-family: var(--font-base);
+    font-weight: 800;
+    font-size: var(--fs-numeral);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    display: block;
+    color: var(--text-1);
+  }
+  .stat .value.key { color: var(--accent-400); }
+  .stat .label { font-family: var(--font-mono); font-size: var(--fs-mono-label); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); display: block; margin-top: 6px; max-width: 16ch; }
+
+  .panel { background: var(--ink-900); border: 1px solid var(--line-hairline); border-radius: 12px; padding: 24px; margin-top: 16px; }
+
+  .pt-br-check { font-family: var(--font-base); font-size: var(--fs-body); color: var(--text-2); line-height: 1.6; }
+  .pt-br-check strong { color: var(--text-1); }
+
+  .ruler { position: relative; }
+  .ruler::after {
+    content: "";
+    position: absolute;
+    left: -1px; top: 0; bottom: 0;
+    width: 1px;
+    background: var(--status-error);
+  }
+
+  .toggle-note { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); margin-bottom: 24px; letter-spacing: 0.04em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<main>
+  <p class="toggle-note">BrandUp · especime de tipografia · 08/11/2026 · viewport atual marcado no canto</p>
+
+  <section class="role">
+    <p class="role-label">display.hook <span class="meta">Barlow Condensed 800 · clamp 30→52px · lh 1.1→1.08 · tracking −1%→−2% · caixa alta</span></p>
+    <div class="hook-wrap">
+      <h1 class="hook">How industrial and B2B companies are generating <mark>over $250K per month</mark> within 90 days by investing in automation and AI.</h1>
+    </div>
+  </section>
+
+  <section class="role">
+    <p class="role-label">display.section <span class="meta">Montserrat 500/700 · clamp 30→44px · lh 1.15→1.1</span></p>
+    <h2 class="section-title">Your AI office, working <strong>right now.</strong></h2>
+    <h2 class="section-title">Six AI agents working as an extension of your team, 24 hours a day.</h2>
+  </section>
+
+  <section class="role">
+    <p class="role-label">body.lead / body / small <span class="meta">Montserrat 400 · 18–20 / 17 / 14px</span></p>
+    <p class="lead">We build an office of AI agents that runs your marketing, social media, sales follow-up, finance and reporting, 24 hours a day.</p>
+    <p class="body">You watch it work and approve from anywhere. We have already generated over 10 million in sales for our clients. Produção, ação e aprovação — tudo em uma única tela, em português e em inglês.</p>
+    <p class="small">We only use your details to respond to your enquiry. Read our privacy policy. · Preço, horário e contagem em algarismos tabulares: R$ 14.200,00 às 09:15, 3 ações pendentes.</p>
+  </section>
+
+  <section class="role">
+    <p class="role-label">mono.data <span class="meta">Geist Mono 500/600 · 11–14px · caixa alta · tracking +0.07em · tabular-nums</span></p>
+    <div class="mono-row">
+      <span class="mono-chip"><span class="led"></span>YOUR FOLLOW-UP · WORKING</span>
+      <span class="mono-chip">AEST 14:32</span>
+      <span class="mono-chip">QUOTE A$14,200</span>
+      <span class="mono-chip attention">NEEDS APPROVAL</span>
+      <span class="mono-chip error">NEEDS ATTENTION</span>
+      <span class="mono-chip">INV-0412</span>
+    </div>
+  </section>
+
+  <section class="role">
+    <p class="role-label">numeral.stat <span class="meta">Montserrat 800 · clamp 28→40px · tabular-nums</span></p>
+    <div class="stats">
+      <div class="stat"><span class="value">90</span><span class="label">days to put your AI office to work</span></div>
+      <div class="stat"><span class="value">24/7</span><span class="label">agents on duty</span></div>
+      <div class="stat"><span class="value key">$250K</span><span class="label">revenue generated by our clients</span></div>
+    </div>
+  </section>
+
+  <section class="role">
+    <p class="role-label">pt-BR — checagem de acentos, cedilha, aspas e travessão <span class="meta">body (Montserrat 400, lang="pt-BR", hyphens: auto)</span></p>
+    <p class="pt-br-check" lang="pt-BR">
+      <strong>AÇÃO</strong>, <strong>Produção</strong> e <strong>Ingressos</strong> — ÁÉÍÓÚ ÂÊÔ ÃÕ Ç. "Isso é real, e quem controla sou eu", disse o diretor — a aprovação é sempre do dono, nunca do agente. A hifenização automática evita que uma palavra longa como extraordinariamente fique solta na margem.
+    </p>
+  </section>
+
+  <section class="role">
+    <p class="role-label">cartão de aprovação (composição real dos papéis juntos)</p>
+    <div class="panel">
+      <p class="small" style="text-transform:uppercase; letter-spacing:.08em; font-family:var(--font-mono); color:var(--text-3); margin-bottom:8px;">Sales follow-up agent</p>
+      <h2 class="section-title" style="font-size: 1.375rem; margin-bottom: 8px;">Send a reminder to Acme Distribution?</h2>
+      <p class="body" style="margin-bottom:16px;">Drafted a follow-up for a quote sent 6 days ago with no reply.</p>
+      <div class="mono-row">
+        <span class="mono-chip">QUOTE A$14,200</span>
+        <span class="mono-chip"><span class="led"></span>11:48</span>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>
