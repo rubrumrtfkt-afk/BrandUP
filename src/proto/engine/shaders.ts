@@ -32,6 +32,9 @@ uniform float uNetI;     // overall network intensity
 uniform vec4 uForm;      // the form section (viewport px): after the fall the points settle there as its ground
 uniform float uFormMix;  // 1 = flat behind the form, 0 = the night's floor
 uniform vec3 uPtr;       // pointer x, y, strength (the points make way, subtly)
+uniform float uThin;     // v54: √(points built / points drawn) after the quality drop: the light of each point rises
+uniform vec4 uLogo;      // v55 the intro: the logo's centre x, y (viewport px), its size (px for 40 favicon units), the morph 0…1
+uniform float uLogoI;    // the light of each point while it is still the logo's triangle (the brand purple, not a white blot)
 out float vI;
 out float vG;            // the mint accent: only the agent that is acting right now
 
@@ -70,12 +73,28 @@ void main() {
     if (role < .5 && id != hotBrain) iNet *= .4;
     else if (role > .5 && role < 1.5 && id != hot) iNet *= .4;
   }
-  iNet *= uNetI;
+  iNet *= uNetI * uThin;
   // the fall: the network tilts back onto the floor (rotation about its base)
   float ang = uFall * 1.35;
   float depth = p.y * sin(ang);
   float persp = 1. / (1. + depth * .55);
   vec2 sN = vec2(uNetF.x + p.x * uNetF.z * uNetS * persp, uNetF.y - p.y * cos(ang) * uNetF.z * persp);
+  // v55 the intro (owner: the logo travels to the network and BECOMES it): until the morph every point of the network is
+  // a grain of the logo's purple triangle, (20,5) (35,33) (5,33) of the favicon; then it flies to its own place, the
+  // nodes first, the wires after (they carry the work), on a slight curve, and its light rises to the network's.
+  if (uLogo.w < 1.) {
+    float a = seed, b = phase;
+    if (a + b > 1.) { a = 1. - a; b = 1. - b; }
+    vec2 tri = vec2(0., -15.) + a * vec2(15., 28.) + b * vec2(-15., 28.);
+    vec2 L = uLogo.xy + tri * uLogo.z / 40.;
+    float r = fract(seed * 13.7 + phase * 7.3);
+    float dl = (role < .5 || (role > 1.5 && role < 2.5) ? 0. : role < 1.5 ? .12 : .2) + .2 * r;
+    float t = clamp((uLogo.w - dl) / .6, 0., 1.);
+    float e = 1. - pow(1. - t, 3.);
+    vec2 dv = sN - L;
+    sN = mix(L, sN, e) + vec2(-dv.y, dv.x) * .22 * sin(3.14159 * e) * (r - .5);
+    iNet *= mix(uLogoI, 1., smoothstep(0., .7, t));
+  }
 
   // the grid: one point per moment of the night; the crest is time passing
   float tc = uPortrait > .5 ? aGrid.y : aGrid.x;
@@ -98,11 +117,14 @@ void main() {
   vec2 dp = sF - uPtr.xy; float dd = length(dp);
   float push = uPtr.z * exp(-dd * dd / 9000.);
   sF += (dd > .01 ? dp / dd : vec2(0.)) * push * 24.;
-  float iF = (.24 + .1 * seed + push * .3) * (work ? 1.2 : 1.);
+  float iF = (.32 + .1 * seed + push * .3) * (work ? 1.2 : 1.); // v4.3: the form's ground a step brighter (the form frames were < 4 %)
 
-  float m = smoothstep(.3, 1., uFall);
+  // brief-v4.3 §4.2: the network keeps its shape through most of the fall (it tilts whole) and only then spreads as the form's ground
+  float m = smoothstep(.55, 1., uFall);
   vec2 s = mix(sN, mix(sG, sF, uFormMix), m);
   vI = mix(iNet, mix(iG * uGridOn, iF, uFormMix), m);
+  // brief-v4.3 §4.2 (y 450): the network falls WHOLE, at ≥ 70 % of its light, and only dims as it lands as the form's ground
+  vI = max(vI, iNet * .7 * (1. - smoothstep(.82, 1., m)));
   vG = gNet * uNetI * (1. - m);
   gl_PointSize = mix(sNet, mix(sGs, 1.7, uFormMix), m) * (2. / uCell);
   vec2 ndc = s / uView * 2. - 1.;
@@ -140,17 +162,20 @@ uniform vec4 uHz;         // horizon: x0, x1, y, on
 uniform float uBeam[5];   // beam heights in px
 uniform vec4 uBeamTo;     // beams converge: -, logo centre x, half width, on
 uniform vec4 uRise;       // cx, top y, progress 0…1, on
-uniform vec4 uTri;        // logo: centre x, apex y, height, on
-uniform vec4 uTriL;       // lit fraction from the apex, arrow 0…1, -, column mode
-uniform vec3 uFDot[5];    // FAQ dots rising: x, y, on
 uniform vec4 uAct[2];     // action rects (viewport px)
 uniform vec4 uActP[2];    // reach px, level, speed, on
-uniform vec3 uTrav;       // the order travelling to the phone: x, y, on
+uniform vec4 uHzX;        // brief-v4.4 §8.1: x = the opening (the line draws from its centre to its ends), y = the fringe (0 where an orla replaces it)
+uniform float uPktOn;     // brief-v4.4 §3.1: 1 while any packet is drawn (skips the loop otherwise)
+uniform vec4 uPkt[12];    // the green packets: 3 × (head + 3 ghosts): x, y, radius, intensity (mint, channel G)
+uniform float uFragOn;    // brief-v4.4 §3.2: 1 while any fragment flies
+uniform vec4 uFrag[24];   // fragments in flight: x, y, radius, intensity (> 0 light, < 0 the two of energy, mint)
 uniform vec4 uEvB[5];     // night event beams: x, bottom y, top y, on
 uniform vec4 uPool[6];    // office desk pools: x, y, r, on
 uniform float uActG;      // 1 = the light around the action has a mint core (owner 09/11: the accent)
 uniform float uFlyOn;     // 1 while any dot of the dawn flies (skips the loop otherwise)
 uniform vec4 uFly[24];    // T3 "the dawn" (brief-v4.2 §5.3): the figures' dots flying to the desks: x, y, size, on
+uniform vec4 uArw[4];     // v52 the logo's white arrow in the network: x, y (centre, viewport px), tilt (rad), intensity (0 = the arrow, 1–3 ghosts)
+uniform float uArwH;      // its height in px
 out vec4 o;
 
 float logo(vec2 q) { // 0 outside, 1 body, 2 arrow (public/favicon.svg, 40-unit box)
@@ -161,6 +186,7 @@ float logo(vec2 q) { // 0 outside, 1 body, 2 arrow (public/favicon.svg, 40-unit 
   return head || bar ? 2. : 1.;
 }
 float h21(vec2 c) { return fract(sin(dot(c, vec2(12.9898, 78.233))) * 43758.5453); }
+float hh(vec2 c) { vec3 p3 = fract(vec3(c.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 float sdBox(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.)) + min(max(q.x, q.y), 0.) - r; }
 float blob(vec2 p, vec2 c, float s) { vec2 d = p - c; return exp(-dot(d, d) / s); }
 
@@ -175,14 +201,18 @@ void main() {
 
   if (uHz.w > 0.) {
     float dy = p.y - uHz.z;
-    float span = smoothstep(uHz.x, uHz.x + 160., p.x) * (1. - smoothstep(uHz.y - 160., uHz.y, p.x));
-    I += (exp(-dy * dy / 6.) * .95 + (dy < 0. ? exp(dy / 22.) * .32 : exp(-dy / 5.) * .18)) * span * uHz.w;
+    float hcx = (uHz.x + uHz.y) * .5, hw = (uHz.y - uHz.x) * .5 * clamp(uHzX.x, 0., 1.);
+    float span = smoothstep(uHz.x, uHz.x + 160., p.x) * (1. - smoothstep(uHz.y - 160., uHz.y, p.x)) * (1. - smoothstep(hw - 24., hw, abs(p.x - hcx)));
+    // brief-v4.3 §4.2: a 2-px core in light-core and a 96-px fringe above it in two dither levels; brief-v4.4 §9.5: the
+    // fringe goes where an orla takes its place (uHzX.y = 0), never a double fringe
+    I += ((abs(dy) < 1.5 ? 1.1 : exp(-dy * dy / 6.) * .8) + (dy < 0. ? (dy > -36. ? .44 : dy > -96. ? .27 : 0.) * uHzX.y : exp(-dy / 5.) * .18)) * span * uHz.w;
     for (int i = 0; i < 5; i++) {
       float h = uBeam[i];
       if (h < 1.) continue;
       float up = -dy;
       if (up <= 0. || up >= h) continue;
       float bx = mix(uHz.x, uHz.y, (float(i) + .5) / 5.);
+      if (abs(bx - hcx) > hw) continue; // a beam stands only where the line has opened
       if (uBeamTo.w > 0.) bx = mix(bx, uBeamTo.y + (float(i) - 2.) * .4 * uBeamTo.z, up / max(h, 1.));
       float dx = p.x - bx;
       float carrier = step(.38, fract(up / 9. - uTime * .9));
@@ -198,24 +228,44 @@ void main() {
     if (bar > 0. && p.y < uRise.y && abs(p.x - uRise.x) < 8.) G += exp(-bar / 220.);
   }
 
-  if (uTri.w > 0.) {
-    if (uTriL.w > .5) { // phone FAQ: the triangle seen from the side, a column of dots
-      if (abs(p.x - uTri.x) < 1.5 && mod(p.y, 8.) < 2. && p.y > uTri.y && p.y < uTri.y + uTri.z) {
-        float f = (p.y - uTri.y) / uTri.z;
-        I += (f < uTriL.x ? .7 : .25) * tw * uTri.w;
-      }
+  // v52: the arrow of the logo (public/favicon.svg proportions: head 14…26 × 13…22, shaft 17.5…22.5 × 21…30).
+  // v54 (jury v53: "TV static" in chromium, "a sieve" in webkit, a stamp over the network; the owner's decision: the
+  // arrow is made of EXACTLY the network's material): no lattice and no holes. Per light texel (the same grain the
+  // points land on): the outline is a continuous, dense wire of grains (lilac/white, like the wires), the inside a fine
+  // grain with no empty cell (≥ purple everywhere) that brightens to a warm white core along its axis (like a brain:
+  // white at the centre), and a sparse purple halo just outside (like a node's cloud thinning out). The grain is a
+  // hash of the texel index (hh: no sin, the same in every GPU), cross-faded by time so it shimmers slowly, never flickers.
+  for (int k = 0; k < 4; k++) {
+    vec4 A = uArw[k];
+    if (A.w <= 0.) continue;
+    vec2 d = p - A.xy;
+    if (dot(d, d) > uArwH * uArwH * .6) continue;
+    float c = cos(A.z), s = sin(A.z);
+    vec2 q = vec2(c * d.x + s * d.y, -s * d.x + c * d.y) / uArwH * 17. + vec2(20., 21.5);
+    float hw = (q.y - 13.) * 6. / 9.;
+    float eh = min(hw - abs(q.x - 20.), min(q.y - 13., 22. - q.y));            // inside the head > 0
+    float es = min(2.5 - abs(q.x - 20.), min(q.y - 21., 30. - q.y));           // inside the shaft > 0
+    float px = uArwH / 17.;                                                     // px per favicon unit
+    float ePx = max(eh, es) * px;                                               // ≈ px from the edge (< 0 outside)
+    if (ePx < -9.) continue;
+    vec2 tx = floor(gl_FragCoord.xy) + float(k) * 17.;
+    float n = mix(hh(tx), hh(tx + 91.7), .5 + .5 * sin(uTime * 1.2 + hh(tx + 37.1) * 6.2832));
+    // the outline: a wire of grains centred ON the edge (≈ 6 px wide, like a wire of the network), dense and bright
+    float wireW = max(3., uCell * 1.5);
+    float wire = exp(-ePx * ePx / (wireW * wireW * .55));
+    float v = wire * (.95 + .6 * (n - .5)) * step(.12, n);
+    if (ePx > 0.) {
+      float core = smoothstep(wireW, 2.3 * px, ePx);                           // 0 inside the wire, 1 on the axis
+      // ≥ .5 everywhere = never below the brand purple (no empty cell); the white gathers toward the axis
+      v = max(v, max(.5, .5 + .55 * pow(core, 1.2) + .7 * (n - .5)));
     } else {
-      float unit = uTri.z / 28.;
-      vec2 q = (p - uTri.xy) / unit + vec2(20., 5.);
-      float l = logo(q);
-      float f = (q.y - 5.) / 28.;
-      if (l > 1.5 && uTriL.y > .01 && f < 1. - (1. - uTriL.y) * 1.2) I += (.9 + .1 * sin(uTime * 1.6)) * uTri.w; // the arrow lights, bottom → top sweep
-      // the answered part (from the apex down) is denser: every 4 px instead of 8 (brief: "o ápice adensa")
-      else if (l > .5 && f < uTriL.x && mod(p.x, 4.) < 2. && mod(p.y, 4.) < 2.) I += (.55 + .3 * (1. - f)) * tw * uTri.w;
-      else if (l > .5 && grid8) I += .42 * tw * uTri.w;
+      float a = exp((ePx + wireW) / 2.8);                                        // the halo past the wire, sparser out
+      v = max(v, step(1. - .8 * min(a, 1.), n) * (.34 + .3 * min(a, 1.)));
     }
+    I += A.w * v;
   }
-  for (int k = 0; k < 5; k++) if (uFDot[k].z > 0.) I += blob(p, uFDot[k].xy, 14.) * 1.3 * uFDot[k].z;
+
+  // brief-v4.3 §5.1: the FAQ triangle (uTri) and its rising dots (uFDot) are gone: the triangle lives only in the intro, the hero and the footer
 
   for (int k = 0; k < 2; k++) {
     vec4 P = uActP[k];
@@ -232,7 +282,18 @@ void main() {
     else I += pow(fall, 1.5) * glow * .85;
   }
 
-  if (uTrav.z > 0.) G += blob(p, uTrav.xy, 16.) * 1.4 * uTrav.z; // the order on its way to your yes
+  // brief-v4.4 §3.1: every green packet of the page, one path; a grain in the same 4-level dither, no halo
+  if (uPktOn > 0.) for (int k = 0; k < 12; k++) {
+    vec4 d = uPkt[k];
+    if (d.w <= 0.) continue;
+    G += blob(p, d.xy, d.z * d.z * .5) * d.w * 1.3;
+  }
+  if (uFragOn > 0.) for (int k = 0; k < 24; k++) {
+    vec4 d = uFrag[k];
+    if (d.w == 0.) continue;
+    float v = blob(p, d.xy, d.z * d.z * .5);
+    if (d.w > 0.) I += v * d.w; else G += v * -d.w;
+  }
   if (uFlyOn > 0.) for (int k = 0; k < 24; k++) {
     vec4 d = uFly[k];
     if (d.w <= 0.) continue;
@@ -302,7 +363,7 @@ void main() {
   float b = (B[bi.x + bi.y * 4] + .5) / 16.;
   // the office model, no frame (brief-v4.1 §4.3). v4.6 (owner: "a lit desk in a murky block, the edge still reads as
   // a rectangle"): (1) the edge is a superellipse broken by grain, so no straight side survives; (2) the darkest
-  // pixels of the render fall through to the page ground by the same Bayer threshold, so the room's shadow IS the
+  // pixels of the render fall through to the page ground by the same Bayer threshold, so the room's dark IS the
   // fog and grain around it and only what holds light stays; (3) the unlit room is brighter and less grey, the lit
   // desks get a wider pool and more exposure, so the moving figures read.
   if (uOffOn > 0. && css.x > uOffR.x && css.x < uOffR.z && css.y > uOffR.y && css.y < uOffR.w) {
@@ -315,7 +376,9 @@ void main() {
       vec2 tuv = uOffM.xy + local * uOffM.zw;
       vec3 night = texture(tNight, tuv).rgb;
       float g = dot(night, vec3(.299, .587, .114));
-      vec3 col = mix(vec3(g), night, .45) * uOffLum;
+      // v5.0 (owner: "the office is dark"): the room that is off reads as a model, not as murk: more of its own
+      // colour, a lifted gamma (the walls and floor hold) and uOffLum 1.0 (was .68); the working desks keep ~1.7×.
+      vec3 col = pow(mix(vec3(g), night, .6) * uOffLum, vec3(.86));
       float lit = 0., spill = 0.;
       for (int k = 0; k < 6; k++) {
         float d = length((tuv - uDesk[k].xy) * vec2(1., uDeskK));
@@ -323,8 +386,8 @@ void main() {
         lit = max(lit, step(d, r * (.8 + .4 * b)));
         spill = max(spill, r > 0. ? 1. - smoothstep(r * .9, r * 1.9, d) : 0.);
       }
-      vec3 hot = min(night * 1.45 + vec3(.012, .008, .02), vec3(1.)); // exposure up on the desks that work
-      col = mix(col, mix(night, hot, .5), spill * .4);
+      vec3 hot = min(night * 1.7 + vec3(.012, .008, .02), vec3(.96)); // exposure up on the desks that work (v5.0: 1.45 → 1.7, capped under white)
+      col = mix(col, mix(night, hot, .5), spill * .5);
       col = mix(col, hot, lit);
       if (local.y < uDayP * 1.25 - .12 + (b - .5) * .1) col = texture(tDay, tuv).rgb;
       float lum = dot(col, vec3(.299, .587, .114));
@@ -340,9 +403,11 @@ void main() {
     }
   }
   // titles and labels stay on dark ground: rounded box, its edge dotted by the same Bayer (no hard cut).
-  // v4.5: the unlit ground is TRANSPARENT (the textured CSS ground shows through, proto.css body::before/after);
-  // inside a dark box the ground is painted opaque again, so the fog and grain never sit under a title.
-  float dk = 1.;
+  // v4.5: the unlit ground is TRANSPARENT (the textured CSS ground shows through, proto.css body::before/after).
+  // v4.8 (owner, Safari: "empty black boxes"): a dark box only takes the engine's LIGHT away; it no longer paints
+  // the ground opaque, because a flat #08070B box over the grain read as an empty black card (std of the ground
+  // 0.00 inside vs 1.2-15 outside, proto-v48-bugs/boxstat.py). The CSS ground under a title is grain + a fog of
+  // at most rgb(146 50 234 / .2); the text contrast is measured on it (proto-v48-bugs/contrast.mjs).
   for (int k = 0; k < 16; k++) {
     if (k >= uDarkN) break;
     vec4 r = uDark[k];
@@ -353,16 +418,15 @@ void main() {
     float d = length(max(q, 0.)) + min(max(q.x, q.y), 0.) - rad;
     float m = smoothstep(0., f, d);
     float k2 = f >= 24. ? step(b, m) : m;
-    I *= k2; G *= k2; dk *= k2;
+    I *= k2; G *= k2;
   }
-  float ga = 1. - dk; // alpha of the unlit ground: 0 in the open, 1 under a title
   if (G > .06 && G >= I * .7) { // the mint accent, same 4-level dither
     float lg = floor(clamp(G, 0., 1.) * 4. + b);
-    o = lg < .5 ? vec4(C0, ga) : vec4( lg < 1.5 ? vec3(.055, .231, .165) : lg < 2.5 ? vec3(.184, .816, .561) : lg < 3.5 ? vec3(.345, .965, .694) : vec3(.914, 1., .961), 1.);
+    o = lg < .5 ? vec4(C0, 0.) : vec4( lg < 1.5 ? vec3(.055, .231, .165) : lg < 2.5 ? vec3(.184, .816, .561) : lg < 3.5 ? vec3(.345, .965, .694) : vec3(.914, 1., .961), 1.);
     return;
   }
   float lv = floor(clamp(I, 0., 1.) * 4. + b);
   vec3 c = lv < .5 ? C0 : lv < 1.5 ? C1 : lv < 2.5 ? C2 : lv < 3.5 ? C3 : C4;
-  o = vec4(c, lv < .5 ? ga : 1.);
+  o = vec4(c, lv < .5 ? 0. : 1.);
 }
 `

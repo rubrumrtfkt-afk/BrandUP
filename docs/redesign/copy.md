@@ -1,5 +1,142 @@
 # BrandUp: copy do redesign (inglês australiano)
 
+## v5.4 (09/11/2026): o hero longo, para negócios em geral
+
+O dono quer de volta o H1 longo da página atual (`src/App.tsx`), com a mesma estrutura, para **negócios em geral** (não só indústria e B2B, e não restaurantes) e com a oferta de **automação e IA**. E quer **"$250K per month" bem destacado**, porque é a frase de maior impacto. Esta seção substitui o `hero.h1` e o `hero.lede` da v5 (§2.2). **`office.h2` ("Never late. / Never asks for a raise.") não se toca.** Depois da troca, o `COPY_VERSION` passa a `'v5.4'`.
+
+Caixa normal no código: a caixa alta do original foi digitada, e aqui ela passa a ser decisão de CSS (`text-transform`). Inglês australiano e sem vírgula de Oxford, como no resto da página.
+
+### A. H1 (`hero.h1`)
+
+| | Texto | Car. | Palavras |
+|---|---|---|---|
+| Original | HOW RESTAURANTS ARE GENERATING **OVER $250K PER MONTH** WITHIN 90 DAYS BY INVESTING IN MARKETING. | — | — |
+| **Final** | How businesses are generating over **$250K per month** within 90 days by investing in AI agents. | 92 | 16 |
+
+**O destaque máximo é `$250K per month`**: um `<strong>` só, e nada mais no H1 com peso, cor ou tamanho próprios. O "over" sai do destaque e fica no peso normal, colado antes do número. Assim o destaque começa pelo cifrão, e o olho cai direto no número. A frase continua dizendo "over", e ninguém lê um mínimo como um valor exato. O destaque é semântico (`<strong>`), então o leitor de tela também ouve a ênfase. Tamanho, cor e luz desse trecho são do `ui-ux-director` e do `type-director`. Do texto, o que eles precisam saber é isto: o H1 tem três blocos de sentido, e se precisar quebrar a linha, a quebra fica entre eles, nunca dentro do destaque:
+
+| Bloco | Texto | Car. |
+|---|---|---|
+| 1 | How businesses are generating over | 34 |
+| 2 (destaque) | $250K per month | 15 |
+| 3 | within 90 days by investing in AI agents. | 41 |
+
+No `content.ts`, a forma sugerida é `h1: ['How businesses are generating over', '$250K per month', 'within 90 days by investing in AI agents.']`, com o índice 1 renderizado em `<strong>`. É o mesmo padrão de array do H1 atual.
+
+**Por que "AI agents" no fim, e não "automation and AI".** "Marketing" era uma palavra que o dono do restaurante entendia na hora. "AI agents" é o equivalente concreto: são os seis cargos que aparecem logo abaixo, na rede do hero, e é a palavra do glossário. "Automation and AI" diz a categoria, e uma categoria não vira imagem. A palavra "automation" entra no apoio, onde cabe a explicação.
+
+**Variações**
+
+| | H1 | Car. | Ângulo |
+|---|---|---|---|
+| **A (recomendada)** | How businesses are generating over **$250K per month** within 90 days by investing in AI agents. | 92 | resultado, com o nome do que se compra |
+| B | How businesses are generating over **$250K per month** within 90 days by investing in automation and AI. | 100 | a oferta como o dono a descreve; é mais genérica, e o "AI" no fim fica solto |
+| C | How Australian businesses are generating over **$250K per month** within 90 days by investing in AI agents. | 103 | prova de lugar: quem vem do Meta na Austrália se reconhece. Use se o dono quiser deixar claro que atende só na Austrália |
+
+### B. Apoio (`hero.lede`)
+
+| | Texto | Car. | Palavras |
+|---|---|---|---|
+| Original | The best digital marketing and online presence strategies to put you at the top when customers search, compare, and decide where to eat. We have already generated **OVER 10 MILLION** in sales for our clients. | — | — |
+| **Final** | AI agents and automation that put you first when customers search, compare and decide who to buy from. We run them. You approve the big calls. We have already generated **over 10 million** in sales for our clients. | 210 | 38 |
+
+- **Ficou quase todo:** o "put you…", o "when customers search, compare and decide" e a frase dos 10 milhões, palavra por palavra.
+- **"The best" saiu.** É um superlativo que ninguém consegue provar, e na Austrália a lei do consumidor (ACL) trata promessa sem prova como conduta enganosa. Nada entrou no lugar.
+- **"At the top" virou "first".** "No topo" é uma promessa de busca no Google, ou seja, de marketing. O agente faz a pessoa ser **a primeira a responder** quando o cliente compara, e é isso que a página mostra ("Enquiry answered", "Quote sent").
+- **"Where to eat" virou "who to buy from".** Serve para qualquer negócio que vende, de uma oficina a um escritório de contabilidade.
+- **`over 10 million` leva o destaque secundário:** o `<strong>` do original fica, mas no peso do texto e sem cor nem tamanho próprios. Ele nunca disputa com o `$250K per month`. Se o design só tiver um nível de destaque, ele sai do `<strong>` antes de o H1 perder força.
+
+### C. A linha curta "AI agents we run. You approve the big calls."
+
+**Ela se funde ao apoio e sai como linha própria.** "AI agents" já está no H1 e no apoio, e uma terceira linha de texto disputaria o olhar com o `$250K per month`, que o dono quer em primeiro. Mas a ideia de que a BrandUp opera os agentes e o dono decide é o que separa a oferta de um software que a pessoa teria de configurar sozinha. Por isso ela entra no meio do apoio, como duas frases curtas ("We run them. You approve the big calls.") entre as duas frases longas. Isso também dá ritmo ao parágrafo: longa, curta, curta, longa. O vértice do triângulo ("You approve here") continua dizendo a mesma coisa na imagem.
+
+- Variação **sem a fusão** (170 car., 30 palavras): `'AI agents and automation that put you first when customers search, compare and decide who to buy from. We have already generated over 10 million in sales for our clients.'` Use se o apoio ficar alto demais a 390. Nesse caso, "You approve the big calls." continua na meta description e no vértice.
+- **`hero.proof` ('A$10M+ generated for clients.') sai.** A prova agora está no apoio, e repeti-la logo abaixo seria dizer a mesma coisa duas vezes.
+- **CTA: fica "Build my AI office"** (o original era "Grow my restaurant"). Variação, com o resultado do H1: "Book my diagnosis" (é a palavra do header). Recomendo manter "Build my AI office", que é o mesmo botão do formulário.
+
+**Regra de página que esta seção quebra:** o hero passa de 24 para ≈ 58 palavras visíveis (16 + 38 + 4), acima da régua de ≤ 25 do brief-v4, e a página sobe de 258 para ≈ 290. A decisão é do dono, então o texto segue o pedido dele. Mas o `ui-ux-director` precisa saber, porque o apoio de 210 caracteres pede espaço que o hero da v4.x não reservou.
+
+### D. Meta e "industrial and B2B"
+
+Em `src/proto/content.ts` não há "industrial" nem "B2B". O termo está em `proto.html` (title, description, og, twitter e JSON-LD):
+
+| Onde | Texto atual | Texto final | Car. |
+|---|---|---|---|
+| `<title>` | BrandUp \| AI agents for industrial and B2B companies in Australia | BrandUp \| AI agents for Australian businesses | 45 |
+| `meta description` | BrandUp builds and runs an office of AI agents for Australian industrial and B2B companies. They work overnight; you approve the big calls. | BrandUp builds and runs an office of AI agents for Australian businesses. They work overnight; you approve the big calls. | 121 |
+| `og:title` e `twitter:title` | BrandUp \| AI agents for industrial and B2B companies | BrandUp \| AI agents for businesses | 34 |
+| `og:description` e `twitter:description` | (sem mudança) An office of AI agents that works overnight. You approve the big calls. | — | — |
+| JSON-LD `description` | AI agents for Australian industrial and B2B companies, built and run by BrandUp. | AI agents for Australian businesses, built and run by BrandUp. | 62 |
+
+- **`index.html`** (o site no ar) ainda diz "Marketing for restaurants in Australia". Ele deve receber os mesmos textos acima **quando o redesign for ao ar, e não antes**, porque até lá a página que ele descreve continua sendo a de restaurantes.
+- **`night.labels[2]` 'Purchase order logged'** soa como B2B. Sugiro `'New order logged'` (16 car.): vale para quem vende para consumidor e para empresa, e o horário (21:30) continua plausível. É opcional: "purchase order" não está errado, só é estreito.
+- **Fora do meu arquivo:** o `brief-v4.4.md` (linha 29) ainda descreve a pessoa como "o dono de uma indústria ou de um B2B australiano". Quem atualiza é o `ui-ux-director`.
+
+### E. A confirmar com o dono antes de ir ao ar
+
+1. **O número do H1.** "Businesses are generating over $250K per month within 90 days by investing in AI agents" é uma afirmação **nova**. O número do original era de restaurantes com marketing. Para ir ao ar, ele precisa de pelo menos um caso real de cliente que chegou a $250K por mês em 90 dias **com os agentes**. Também falta dizer se o valor é receita ou vendas, e em que moeda (AUD?). Sem prova, a ACL trata a frase como enganosa. Se não houver caso, o H1 precisa de outro número que exista, e a estrutura continua a mesma.
+2. **"Over 10 million"**: a moeda (A$?) e a fonte. Esse número também vem do trabalho de marketing para restaurantes. Ao lado de "AI agents", o leitor vai entender que os agentes geraram esse valor. Se não foi isso, o texto honesto é "We have already generated over 10 million in sales for our clients" **sem** ligação com os agentes, e isso pede uma frase de transição que o dono precisa aprovar. Continua `modelo:` até a confirmação.
+3. **"Australian businesses"** no title: confirmar que a BrandUp atende só na Austrália. Se não, o title vira "BrandUp \| AI agents for businesses".
+
+**Precisa ser medido no navegador** (eu não medi): o H1 de 92 caracteres na escala do `type-director` a 1440, 390 e 360, com o bloco `$250K per month` inteiro numa linha, e o apoio de 210 caracteres a 390 sem empurrar o CTA para fora da primeira tela.
+
+## v5.3 (09/11/2026): os quatro textos de exemplo do brief-v4.4
+
+São os textos da rodada v4.4 que vieram do brief (§4.4, §4.6, §5.3 e §7, com os limites da tabela do §10) e ainda não tinham passado pelo copy. As outras chaves ficam como estão. **`office.h2` ("Never late. / Never asks for a raise.") não se toca: é decisão do dono.** Depois da troca, o `COPY_VERSION` passa a `'v5.3'`, e os comentários "brief-v4.4" dessas quatro chaves podem virar "copy v5.3".
+
+| Chave | Texto atual (brief) | Texto final | Limite | Medida |
+|---|---|---|---|---|
+| `night.count` | `'done overnight'` | `'done overnight'` (sem mudança) | ≤ 3 palavras, ao lado do número | 2 palavras, 14 car. ("9 done overnight" = 16) |
+| `night.aria` (sr-only) | `'Overnight, 6pm to 8am, six agents … invoices chased, 14 leads followed up, and the results reach your phone. At 7:58 one request waits there.'` | `'Overnight, from 6pm to 8am, six agents work at their desks while you sleep: enquiries answered, quotes sent, leads ranked, invoice reminders drafted, 14 leads followed up. Nine jobs done, and each result reaches your phone. At 7:58am, one request waits there for your yes.'` | + 1 oração (o telefone) | 3 frases, 266 car. |
+| `office.orderTag` | `'For you: Sam’s quote'` | `'For you: Sam’s quote'` (sem mudança) | ≤ 4 palavras | 4 palavras, 20 car. |
+| `faq.contact` | `'Still have a question? Talk to us.'` | `'Can’t see your question? Call or email us.'` | ≤ 10 palavras + os 2 contatos | 8 palavras, 42 car. |
+
+**Por quê, item a item**
+
+- **`night.count`: fica "done overnight".** O número vai de 0 a 9 diante dos olhos, e o rótulo não pode ter substantivo no plural: "1 jobs done" e "0 job done" quebrariam a gramática em algum quadro. "Done overnight" serve para 0, 1 e 9. "Overnight" é a palavra do H2 e do link do rodapé, então o contador fala a língua da seção.
+  - Descartei **"jobs done overnight"** (3 palavras), pelo plural, e **"done tonight"**, que tira a palavra da seção.
+- **`night.aria`: três frases e não uma lista com o telefone pendurado no fim.** Mudaram quatro coisas:
+  1. "Invoices chased" vira **"invoice reminders drafted"**. A placa diz "Invoice reminders drafted", e o FAQ diz que lembrete de pagamento espera o seu "yes". "Chased" prometia um envio que a página não mostra.
+  2. A oração do telefone ganhou uma frase própria com o número: **"Nine jobs done, and each result reaches your phone."** Quem ouve a página recebe o que quem vê lê no contador ("9 done overnight") e nos pacotes chegando ao handset.
+  3. **"7:58am"**, com o "am", porque "7:58" solto não diz se é de manhã. O "6pm to 8am" fica: é como se fala a hora em voz alta, e o leitor de tela lê melhor isso do que "18:00".
+  4. **"waits there for your yes"** fecha com a palavra do glossário e com a placa das 07:58 ("Waiting for your yes").
+- **`office.orderTag`: fica "For you: Sam’s quote".** A função (brief §5.3) é dizer "isso vai para você", e o "For you" diz isso antes de qualquer outra palavra. "Sam’s quote" é o mesmo nome que a pessoa vai ler no telefone logo depois ("Follow up Sam’s quote…"), então a etiqueta e o pedido se reconhecem. Usa o apóstrofo curvo ’.
+  - Descartei **"Your call: Sam’s quote"**: "your call" quer dizer "você decide", mas com um telefone na cena dá para ler "a sua ligação". E descartei **"Needs your yes: Sam’s quote"**, que tem 5 palavras.
+- **`faq.contact`: "Can’t see your question? Call or email us."** A linha responde à 6ª pergunta, a que não está na lista. "Talk to us" é a frase de todo rodapé e não diz como. Os dois verbos agora são os dois links que vêm logo embaixo, na mesma ordem: o telefone primeiro e depois o e-mail. São 8 palavras, sem prometer prazo de resposta (o "5 minutes" só vale para a ligação do formulário, em horário comercial).
+  - Variação, **mais curta**: `'Not on the list? Call or email us.'` (8 palavras, 34 car.). É mais seca, mas "the list" faz a pessoa pensar na lista e não na própria pergunta. Recomendo a primeira.
+  - **Ordem dos links:** se o studio mantiver o e-mail antes do telefone (como no rodapé), o texto vira `'Can’t see your question? Email or call us.'`. O verbo segue o link.
+  - **Os contatos continuam `modelo:`** (`footer.email` e `footer.phone`, copy §2.10): não vão ao ar sem os dados reais do dono. Se o dono não confirmar um dos dois, a linha perde o verbo dele ("Can’t see your question? Email us.").
+
+**Precisa ser medido no navegador** (eu não medi): `faq.contact` em Body 16 na coluna c1–c4 a 1440 e a 390 (com 42 car., a expectativa é 1 linha a 1440 e 2 a 390), e "9 done overnight" ao lado da casa a 390, sem invadir a placa vizinha.
+
+## v5.2 (09/11/2026): os textos PENDENTE do protótipo
+
+Procurei PENDENTE, PLACEHOLDER e PROVISIONAL em `src/proto/content.ts`. Há quatro marcadores, todos pedidos no brief-v4.3 §10.2. (As outras ocorrências de "placeholder" são o atributo dos campos do formulário, não marcadores.) As chaves que não aparecem aqui ficam como estão. Depois da troca, o `COPY_VERSION` passa a `'v5.2'` e os quatro comentários PENDENTE podem sair.
+
+| Chave em `content.ts` | Texto atual | Texto final | Limite (brief §10.2) | Medida |
+|---|---|---|---|---|
+| `night.home` | `'You, asleep'` | `'You, asleep'` (sem mudança) | ≤ 3 palavras | 2 palavras, 11 car. |
+| `you.scrollHint` | `'Keep scrolling to approve.'` | `'Scroll to approve.'` | ≤ 5 palavras | 3 palavras, 18 car. |
+| `you.approveG` | `['Approve', 'Approving…', 'Approved']` | `['Approve', 'Approving…', 'Approved']` (sem mudança) | 1 palavra | 7 / 10 / 8 car. |
+| `you.declineG` | `['Decline', 'Declining…', 'Declined']` | `['Decline', 'Declining…', 'Declined']` (sem mudança) | 1 palavra | 7 / 10 / 8 car. |
+| `final.team` (sr-only) | `'The six agents from the top of the page: follow-up, bookkeeper, ad manager, social media, receptionist and analyst.'` | `'This is the team from the top of the page: follow-up, bookkeeper, ad manager, social media, receptionist and analyst.'` | 1 frase | 1 frase, 117 car. |
+
+**Por quê, item a item**
+
+- **`night.home`: fica "You, asleep".** O rótulo diz "você, em casa, dormindo", e a cama e o telefone virado já dizem "em casa". "You" é a palavra do glossário para o dono, e "asleep" contrasta com as mesas que trabalham do outro lado do fio. Fica sem ponto final, como os outros rótulos da cena.
+  - Descartei **"Asleep at home"**: ela repete o que o quarto já mostra e tira o "You" que liga o rótulo ao "You have the final word".
+- **`you.scrollHint`: "Scroll to approve."** A linha existe porque o visitante pode tentar tocar no Approve, e o botão não é um botão. Então ela precisa dizer o gesto e o efeito, nessa ordem. "Keep scrolling" supõe que a pessoa já entendeu que a rolagem age, e é exatamente isso que ela ainda não sabe. Com 18 caracteres, a frase cabe numa linha de 15 px até a 360.
+  - Variação, **mais marca**: `'Your scroll is your yes.'` (5 palavras, 24 car.). Usa o "yes" do glossário, mas depende de a pessoa decifrar a frase. Prefiro a versão direta. Se o dono quiser a variação, ela vale só na ordem 1 (na ordem 3, a rolagem recusa).
+- **`you.approveG` / `you.declineG`: ficam.** É uma palavra por estado, com o verbo do glossário ("approve"), e a reticência marca o que ainda está em curso. Os três estados finais do reduced motion ("Approved", "Approved", "Declined", brief §4.4) usam as mesmas palavras. Não troquei "Approving…" por "Sending…": o `you.sending` é do envio da versão editada, e o envio da ordem aprovada aparece depois, no `orders[i].sent` ("Sent. Follow-up on its way to Sam.").
+- **`final.team`: "This is the team from the top of the page: …"** O §10.2 pede que a frase diga que os seis são **o time** do começo. A frase atual só os chama de "six agents", e a ligação com o H2 "Want a team like this?" ficava para o ouvinte fazer. Agora a palavra "team" se repete, e quem usa leitor de tela ouve a mesma rima que quem vê os pontos acenderem. Os nomes e a ordem seguem `night.desks` e a base do hero. Sem vírgula de Oxford, como no resto da página.
+
+**Fora dos marcadores, mas encontrado na leitura**
+
+1. **[DECISÃO DO DONO, 09/11: NÃO APLICAR] `office` fica como está.** "Never late. / Never asks for a raise." é a frase da propaganda da própria BrandUp e não se troca por "Never tired.". A quebra a 390 foi resolvida no layout (K2 com `min(44px, 11.1vw)`; a troca a 390 só na linha 1, "Sometimes late." → "Never late."), medida em 2 linhas a 1440/768/390/360 nos dois motores (rodada v4.6). A linha da v5.1 §A sobre `office.h2` está revogada. O `form.h2` já está com a v5.1 (`['One call.', 'Your plan.']`), mesmo com o `COPY_VERSION = 'v5.1'`: só o `office` ficou para trás. O comentário "pending the copy-director's pick (§7.2)" de `office.human` pode sair, porque a v5.1 já decidiu "Sometimes".
+2. **A ordem 3 (`you.orders[2]`) tem um comentário "pending" que já pode sair.** O `ask` tem 9 palavras (o limite é 10) e o `why` tem 12 (o limite é 14). Os dois ficam como estão.
+
+**Precisa ser medido no navegador** (eu não medi): "Scroll to approve." numa linha a 360, nos dois motores, sob o telefone.
+
 ## v5.1 (09/11/2026): o que trocar em `src/proto/content.ts`
 
 Três pendências do protótipo: o rodapé, os dois títulos que quebravam em 3 linhas e a tabela do turno. As chaves que não aparecem aqui ficam como estão. Depois da troca, o `COPY_VERSION` passa a `'v5.1'`, e os comentários PROVISIONAL de `night.desks`/`night.tasks` e de `footer.cols`/`footer.live` podem sair.
@@ -11,7 +148,7 @@ Três pendências do protótipo: o rodapé, os dois títulos que quebravam em 3 
 | Chave | Texto atual | Texto novo | Car. por linha |
 |---|---|---|---|
 | `form.h2` | `['Your AI office, mapped', 'in one call.']` | `['One call.', 'Your plan.']` | 9 / 10 |
-| `office.h2` | `['Never late.', 'Never asks for a raise.']` | `['Never late.', 'Never tired.']` | 11 / 12 |
+| `office.h2` | `['Never late.', 'Never asks for a raise.']` | **NÃO TROCAR (decisão do dono, 09/11): mantém 'Never asks for a raise.'** | — |
 | `office.rest` | `['late.', 'asks for a raise.']` | `['late.', 'tired.']` | a linha humana mais longa: "Sometimes tired." = 16 |
 | `office.human` / `office.agent` | `'Sometimes'` / `'Never'` | sem mudança (decidido: "Sometimes", a mesma palavra nas duas linhas) | — |
 

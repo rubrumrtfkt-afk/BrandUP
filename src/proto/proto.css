@@ -32,7 +32,8 @@ html[data-ground="final"] { --fog: 1; --fog-y: -3vh; }
 html[data-ground="foot"] { --fog: .3; --fog-y: 9vh; }
 @media (prefers-reduced-motion: reduce) { body::before { transition: none; } }
 /* the fixed canvas covers the viewport the engine draws to (inset: 0 on a fixed box = the viewport) */
-#gl { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; display: block; }
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; display: block; visibility: hidden; }
+.gl-show #gl { visibility: visible; } /* brief-v4.5 §4.4: drawn hidden until 2 frames are ready, then shown in one frame */
 #root { position: relative; z-index: 1; }
 h1, h2, h3, p { margin: 0; }
 a { color: inherit; }
@@ -57,7 +58,8 @@ h2 { font-family: var(--font-display); font-size: var(--type-h2-size); font-weig
 .btn:disabled { cursor: default; background: #2B2732; color: rgb(244 241 248 / .6); }
 .btn[data-state="sending"] { background-position: 0 -48px; }
 .ghost { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 18px; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--ink); font: 500 16px/1 var(--font-text); }
-.ghost.is-off { color: rgb(244 241 248 / .45); }
+.ghost.is-off { color: var(--ink-2); gap: 8px; }
+.ghost.is-off::before { content: ""; width: 8px; height: 1px; background: currentColor; } /* brief-v4.3 §8.2: 'off' is marked, never faded (axe 3.0:1); taste-skill-ignore: the 1-px dash is the state marker the brief asks for, not a divider */
 
 /* ---------- header */
 .bar { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; height: 72px; padding: 0 var(--m); }
@@ -68,9 +70,9 @@ h2 { font-family: var(--font-display); font-size: var(--type-h2-size); font-weig
 
 /* ---------- hero */
 .hero { position: relative; min-height: 100svh; padding: 156px var(--m) 0; }
-.poster { position: absolute; top: 0; left: 0; width: 100%; height: 100lvh; pointer-events: none; z-index: 0; opacity: 1; transition: opacity .3s ease; }
+.poster { position: absolute; top: 0; left: 0; width: 100%; height: 100lvh; pointer-events: none; z-index: 0; }
 img.poster { object-fit: cover; }
-.gl-on .poster { opacity: 0; }
+.gl-show .poster { visibility: hidden; } /* brief-v4.5 §4.4: no cross-fade: the swap is one frame */
 .hero-copy { position: relative; z-index: 2; }
 .hero .lede { max-width: 40ch; font-size: var(--type-body-size); }
 .hero .btn { margin-top: 28px; }
@@ -93,8 +95,9 @@ img.poster { object-fit: cover; }
 /* K1: the line rises into place, once (brief-v4.1 §4.1) */
 .k1-line { display: block; overflow: hidden; overflow: clip; padding-bottom: .12em; margin-bottom: -.12em; }
 .k1-line > span { display: block; }
-.k1[data-in="false"] .k1-line > span { transform: translateY(.6em); opacity: 0; }
-.k1[data-in="true"] .k1-line > span { transition: transform .56s var(--ease-out) calc(var(--i) * 90ms), opacity .56s var(--ease-out) calc(var(--i) * 90ms); }
+/* brief-v4.4 §8.2 voice-h2: the same K1, fired by the page's one IO (domScenes) through data-in-state */
+.scenes .k1:not([data-in-state="on"]) .k1-line > span { transform: translateY(.6em); opacity: 0; }
+.k1[data-in-state="on"] .k1-line > span { transition: transform .56s var(--ease-out) calc(var(--i) * 90ms), opacity .56s var(--ease-out) calc(var(--i) * 90ms); }
 
 /* form */
 .form-sec { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gut); padding-bottom: 168px; }
@@ -126,8 +129,21 @@ img.poster { object-fit: cover; }
 .privacy { width: fit-content; color: var(--ink-2); font-size: 15px; }
 .status { min-height: 1.5em; color: var(--ink-2); font-size: 15px; }
 
+/* brief-v4.4 §8.2 the voice: bodies rise 12 px (8 at 390) in a ≤ 6-step ladder 120 ms after their title; controls only
+   fade in with their orla (240 ms, no translate: the control is where the hand expects it). Behind .scenes (domScenes):
+   no JS and reduced motion never hide anything; an item with focus enters at once. */
+.scenes [data-in="voice-body"] { transition: opacity .48s cubic-bezier(.2, .7, .2, 1) calc(120ms + var(--k, 0) * 60ms), transform .48s cubic-bezier(.2, .7, .2, 1) calc(120ms + var(--k, 0) * 60ms); }
+.scenes [data-in="voice-body"]:not([data-in-state="on"]) { opacity: 0; transform: translate3d(0, 12px, 0); }
+.scenes [data-in="voice-control"] { transition: opacity .24s ease-out; }
+.scenes [data-in="voice-control"]:not([data-in-state="on"]) { opacity: 0; }
+.scenes [data-in]:focus-within { opacity: 1; transform: none; transition: none; }
+/* brief-v4.4 §9 the orla: grain resting around a content area (orla.ts sizes and paints it); never under the text */
+.orla { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; image-rendering: pixelated; }
+.form-sec .lead, .faq-list { position: relative; }
+.form-sec, .faq, .final { overflow-x: clip; } /* the orla's side band past the viewport edge is cut, never a sideways scroll (taste inspector, 1440: +32 px) */
+
 /* night (§4.11): 1.4 screens; one log line under the title; the crest carries the hour; K3 */
-.night { position: relative; height: calc(var(--tela) * 1.4); }
+.night { position: relative; height: calc(var(--tela) * 1.2); } /* brief-v4.3 §4.1: 1.2 screens */
 .night .stage { padding: clamp(96px, 10vw, 128px) var(--m) 0; }
 .night h2 { max-width: 18ch; }
 .k3-w { color: rgb(244 241 248 / calc(.38 + .62 * var(--lit, 1))); }
@@ -137,63 +153,102 @@ img.poster { object-fit: cover; }
 .gl-on .night:has([data-shift][data-on="true"]) .k3 { opacity: 1; }
 /* brief-v4.2 §5.2 "the shift": six figures on the floor, the moon as the clock, you asleep at home */
 .shift { --hot: #C9A2FF; --core: #FBF7FF; --deep: #5B1FA6; position: absolute; inset: 0; pointer-events: none; font-variant-numeric: tabular-nums; }
-.moon-path { position: absolute; left: 44%; right: calc(var(--m) + 60px); top: 104px; height: 150px; }
+.moon-path { position: absolute; left: 44%; right: calc(var(--m) + 96px); top: 104px; height: 150px; }
 .moon { position: absolute; left: -18px; top: -18px; display: grid; justify-items: center; gap: 6px; will-change: transform; }
 .moon svg { width: 36px; height: 36px; image-rendering: pixelated; }
 .moon-t { font: 500 15px/1 var(--font-text); letter-spacing: .02em; color: var(--ink); }
-.shift-office { position: absolute; left: var(--m); width: calc((100% - 2 * var(--m)) * .74); top: 43%; bottom: 5%; }
-.place { font: 500 12px/1 var(--font-text); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
-.desks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: auto auto; row-gap: clamp(16px, 6vh, 64px); margin-top: 18px; }
-.desk { display: grid; justify-items: start; gap: 4px; }
+.shift-office { position: absolute; left: var(--m); width: calc((100% - 2 * var(--m)) * .75); top: 34%; bottom: 4%; } /* §6.2: c1–c9, the block's top at 34 % */
+.place { font: 500 var(--type-label-size)/1.3 var(--font-text); color: var(--ink-2); } /* §6.4: a phrase in Label 15, no small caps */
+.desks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto auto; row-gap: clamp(16px, 6vh, 64px); margin-top: 18px; }
+.desk { display: grid; justify-items: start; gap: 4px; min-width: 0; }
 /* the back row stands further away: a smaller figure (78 %), the text keeps its size */
 .desk:nth-child(-n+3) { padding-left: 4%; }
-.desk:nth-child(-n+3) .fig { width: 56px; height: 56px; }
-.fig { position: relative; display: block; width: 72px; height: 72px; }
+.desk:nth-child(-n+3) .fig { width: 112px; height: 112px; }
+.fig { position: relative; display: block; width: 144px; height: 144px; } /* §6.2: 144 front row, 112 back row (×2) */
+/* §6.2 the monitor lights a pool on the desk: the light has a carrier. Three dither levels, radius 1.2× the figure */
+/* v4.8: every dither-pool mask below ends "… 99%, transparent 100%": with the two last stops both at 100 % WebKit
+   paints the area outside the ellipse with the .12 stop (a lilac RECTANGLE around each figure in Safari, owner v4.8) */
+.fig::before { content: ""; position: absolute; left: 75%; top: 46%; width: 240%; height: 90%; transform: translate(-50%, -50%); opacity: 0; transition: opacity .3s steps(3, end); pointer-events: none;
+  background: repeating-conic-gradient(#C9A2FF 0 25%, transparent 0 50%) 0 0 / 4px 4px; /* taste-skill-ignore: a 4-px checker (Bayer dither of the light), not a gradient fill */
+  -webkit-mask: radial-gradient(closest-side, rgb(0 0 0 / .55) 0 30%, rgb(0 0 0 / .3) 30% 62%, rgb(0 0 0 / .12) 62% 99%, transparent 100%); mask: radial-gradient(closest-side, rgb(0 0 0 / .55) 0 30%, rgb(0 0 0 / .3) 30% 62%, rgb(0 0 0 / .12) 62% 99%, transparent 100%); } /* taste-skill-ignore: three hard-stop density levels of the dither (a pool), not a fill */
+.shift[data-on="true"] .fig::before, .no-js .fig::before { opacity: 1; }
+.seated { position: relative; }
 /* T3 "the dawn": the figure comes apart in 4 hard steps (scroll-bound, nightShift --melt) while its dots fly off */
 .gl-on .desk .fig { opacity: calc(1 - var(--melt, 0)); }
 .seated, .sleeper-svg { display: block; width: 100%; height: 100%; shape-rendering: crispEdges; }
 .seated .mon-back { fill: var(--deep); }
 .seated .mon { fill: var(--hot); opacity: .25; transition: opacity .06s steps(1, end) calc(var(--i) * 60ms); }
 .seated .lamp { fill: var(--hot); opacity: .5; }
-.shift[data-on="true"] .mon { opacity: 1; animation: mon-idle calc(2.2s + var(--i) * .37s) steps(1, end) calc(var(--i) * .41s + .4s) infinite; }
+.shift[data-on="true"] .mon { opacity: 1; animation: mon-idle calc(1.3s + var(--i) * .1s) steps(1, end) calc(var(--i) * .2s + .3s) 2; } /* D16: twice, then still (≤ 5 s) */
 @keyframes mon-idle { 0%, 88% { opacity: 1; } 89%, 100% { opacity: .8; } }
 .desk[data-work="true"] .mon { fill: var(--core); }
 .desk[data-work="true"] .arm { animation: type-3 .36s steps(3, end) 1; }
 @keyframes type-3 { from { transform: translateX(-1px); } to { transform: translateX(1px); } }
 .beam { position: absolute; left: 75%; top: 26%; width: 2px; height: 72px; margin-left: -1px; background: repeating-linear-gradient(to top, var(--core) 0 2px, transparent 2px 4px); transform-origin: 50% 100%; transform: translateY(-100%) scaleY(0); opacity: 0; } /* taste-skill-ignore: a dotted beam (2-px dots), not a gradient fill */
 .desk[data-work="true"] .beam { animation: beam-up .6s cubic-bezier(.2, .8, .2, 1) 1; }
+.gl-on .desk .beam { display: none; } /* brief-v4.4 §4.3: with the engine the green packet is what leaves the monitor */
+/* §4.2: the pool under the desk rises one dither level while the task lands (600 ms, data-work) and comes back */
+.desk[data-work="true"] .fig::before { -webkit-mask: radial-gradient(closest-side, rgb(0 0 0 / .8) 0 30%, rgb(0 0 0 / .55) 30% 62%, rgb(0 0 0 / .3) 62% 99%, transparent 100%); mask: radial-gradient(closest-side, rgb(0 0 0 / .8) 0 30%, rgb(0 0 0 / .55) 30% 62%, rgb(0 0 0 / .3) 62% 99%, transparent 100%); } /* taste-skill-ignore: hard-stop density levels of the dither, one level up, not a fill */
 @keyframes beam-up { 0% { opacity: 1; transform: translateY(-100%) scaleY(0); } 60% { opacity: 1; transform: translateY(-100%) scaleY(1); } 100% { opacity: 0; transform: translateY(-160%) scaleY(.4); } }
-.desk-label { display: grid; gap: 3px; padding: 2px 0; }
+.desk-label { display: grid; gap: 3px; padding: 2px 0; justify-self: stretch; min-width: 0; } /* §4.5: a task wraps, never into the next column */
 .dname { font: 500 15px/1.2 var(--font-text); color: var(--ink); }
 .dname .short { display: none; }
-.dtask { font: 400 12px/1.25 var(--font-text); letter-spacing: .02em; color: var(--ink-2); white-space: nowrap; }
-.dtask[data-fresh="true"] { color: var(--ink); }
-.home { position: absolute; right: var(--m); width: calc((100% - 2 * var(--m)) * .2); top: 43%; bottom: 5%; padding-left: 28px; border-left: 1px solid rgb(244 241 248 / .08); display: grid; align-content: start; gap: 18px; } /* taste-skill-ignore: brief-v4.2 §5.2 asks for this hairline (alpha .08) between Office and Home */
-.sleeper { position: relative; display: block; width: 144px; height: 72px; margin-top: calc(56px + 6vh + 40px); }
+/* brief-v4.4 §4.2 the shift board: name (Label 15) / hour (Label 15 tabular, ink-2) + task (Lead 18, ink) / the one
+   before at 40 % (1440 only). A station board: the new line comes in under the name, the stack slides (320 ms,
+   transform only), the clip hides what leaves. The task may wrap to 2 lines, never into the next column. */
+.dboard { display: block; width: 100%; overflow: hidden; overflow: clip; height: calc(var(--type-lead-size, 18px) * 1.25 * 3 + 4px); }
+.dstack { display: grid; row-gap: 4px; justify-items: start; transition: transform .32s cubic-bezier(.2, .75, .2, 1); }
+.dline { display: block; max-width: 100%; transition: opacity .32s cubic-bezier(.2, .75, .2, 1); }
+/* v55b (jury, axe after the scroll: the earlier lines at opacity .4 were 2.37:1 and 3.48:1): the same step back, in a tone
+   instead, at AA on the ground (#7d7b81 = 4.7:1 for the 15 px hour, #8a888d = 5.7:1 for the 18 px task); not a regression
+   (v54 had the same .4) */
+.dline.prev .dh { color: #7d7b81; }
+.dline.prev .dtk { color: #8a888d; }
+.dh { font: 500 var(--type-label-size)/1.25 var(--font-text); color: var(--ink-2); font-variant-numeric: tabular-nums; transition: color .32s cubic-bezier(.2, .75, .2, 1); }
+.dtk { font: 400 var(--type-lead-size, 18px)/1.25 var(--font-text); color: var(--ink); transition: color .32s cubic-bezier(.2, .75, .2, 1); }
+.dnone { width: 24px; height: 1px; margin-top: 11px; background: var(--ink-2); } /* taste-skill-ignore: brief-v4.4 §4.2 asks for a 1-px dash where the first task will be (not a divider) */
+.home { position: absolute; right: var(--m); width: calc((100% - 2 * var(--m)) * .2); top: 34%; bottom: 4%; padding-left: 28px; border-left: 1px solid rgb(244 241 248 / .08); display: grid; align-content: start; gap: 18px; } /* taste-skill-ignore: brief-v4.2 §5.2 asks for this hairline (alpha .08) between Office and Home */
+.sleeper { position: relative; display: block; width: 192px; height: 96px; margin-top: calc(112px + 6vh); }
 .sleeper .handset { fill: #15121B; }
 .home[data-lit="true"] .handset { fill: var(--core); }
 /* the one dose of green in the section (§5.2): a dotted, hard-edged energy field around the phone, no glow */
 .phone-aura { position: absolute; left: calc(63.5 / 72 * 100% - 15px); top: calc(21 / 36 * 100% - 12px); width: 30px; height: 24px; opacity: 0;
   background: repeating-conic-gradient(var(--mint) 0 25%, transparent 0 50%) 0 0 / 4px 4px; /* taste-skill-ignore: a 4-px checker (Bayer dither of the energy / the light), not a gradient fill */
-  -webkit-mask: radial-gradient(closest-side, rgb(0 0 0 / .45) 0 55%, rgb(0 0 0 / .18) 55% 100%, transparent 100%); mask: radial-gradient(closest-side, rgb(0 0 0 / .45) 0 55%, rgb(0 0 0 / .18) 55% 100%, transparent 100%); } /* taste-skill-ignore: hard-stop masks that cut the dither into a disc / a ring, not a fill */
-.home[data-lit="true"] .phone-aura { opacity: 1; animation: aura-3 .9s steps(3, end) infinite; }
-@keyframes aura-3 { 0% { opacity: 1; } 33% { opacity: .6; } 66% { opacity: .85; } }
-.wait { font: 400 12px/1.25 var(--font-text); letter-spacing: .02em; color: var(--ink-2); }
+  -webkit-mask: radial-gradient(closest-side, rgb(0 0 0 / .45) 0 55%, rgb(0 0 0 / .18) 55% 99%, transparent 100%); mask: radial-gradient(closest-side, rgb(0 0 0 / .45) 0 55%, rgb(0 0 0 / .18) 55% 99%, transparent 100%); } /* taste-skill-ignore: hard-stop masks that cut the dither into a disc / a ring, not a fill */
+/* brief-v4.4 §4.3: the aura blinks ONCE per packet that arrives (270 ms, 3 steps) and stays lit from 07:58 */
+.sleeper[data-pulse="on"] .phone-aura { animation: aura-1 .27s steps(3, end) 1; }
+.home[data-lit="true"] .phone-aura { opacity: 1; }
+@keyframes aura-1 { 0% { opacity: 1; } 33% { opacity: .6; } 66% { opacity: .85; } 100% { opacity: 1; } }
+/* §4.4 the night's count: the number in Lead 18 tabular rolls one digit (240 ms) per arrival */
+.tally { margin: 0; display: flex; align-items: baseline; gap: 8px; font: 500 var(--type-label-size)/1.3 var(--font-text); color: var(--ink-2); }
+.ncount { display: inline-grid; overflow: hidden; overflow: clip; height: 1.25em; min-width: 1.25ch; font: 500 var(--type-lead-size, 18px)/1.25 var(--font-text); color: var(--ink); font-variant-numeric: tabular-nums; }
+.cd { grid-area: 1 / 1; }
+.cd.in { animation: digit-in .24s cubic-bezier(.2, .75, .2, 1) both; }
+.cd.out { animation: digit-out .24s cubic-bezier(.2, .75, .2, 1) both; }
+@keyframes digit-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes digit-out { from { transform: none; } to { transform: translateY(-100%); } }
+/* §4.3 voice-data: "1 waiting" enters at 07:58 (the request the office will send); reduced / no JS keep it */
+.scenes .wait { transition: opacity .32s cubic-bezier(.2, .75, .2, 1), transform .32s cubic-bezier(.2, .75, .2, 1); }
+.scenes .home[data-lit="false"] .wait { opacity: 0; transform: translate3d(0, 8px, 0); }
+.wait { font: 400 var(--type-label-size)/1.3 var(--font-text); color: var(--ink-2); }
 .home[data-lit="true"] .wait { color: var(--ink); }
 /* without the engine there is no grid: a still floor of dots under the figures (the poster) */
 :is(.gl-off, .reduced, .no-js) .shift-office::before { content: ""; position: absolute; inset: 30px -2% -4% -2%; z-index: -1; background: radial-gradient(circle, rgb(146 50 234 / .55) 1px, transparent 1.5px) 0 0 / 22px 22px; -webkit-mask: linear-gradient(transparent, #000 30%); mask: linear-gradient(transparent, #000 30%); } /* taste-skill-ignore: a still floor of 1-px dots (the grid without WebGL), not a gradient fill */
+/* brief-v4.3 §4.3: without the engine the horizon is still the light of the form (2-px core + a 96-px fringe, 2 dither levels) */
+:is(.gl-off, .reduced, .no-js) .horizon { z-index: -1; height: 98px; background: linear-gradient(#FBF7FF, #FBF7FF) 0 100% / 100% 2px no-repeat, repeating-conic-gradient(#9232EA 0 25%, transparent 0 50%) 0 0 / 4px 4px; /* taste-skill-ignore: a 2-px core line over a 4-px checker (Bayer dither of the light), not a gradient fill */
+  -webkit-mask: linear-gradient(to top, #000 0 2px, rgb(0 0 0 / .7) 2px 36px, rgb(0 0 0 / .35) 36px 96px, transparent 96px); mask: linear-gradient(to top, #000 0 2px, rgb(0 0 0 / .7) 2px 36px, rgb(0 0 0 / .35) 36px 96px, transparent 96px); } /* taste-skill-ignore: hard-stop density levels of the dither, not a fill */
 :is(.gl-off, .reduced, .no-js) .night { height: auto; }
 :is(.gl-off, .reduced, .no-js) .night .stage { position: relative; height: max(760px, var(--tela)); padding-bottom: 96px; }
 
 /* office (§4.3 + §4.2): one pinned scene, 3.2 screens; the model has no frame */
-.office { position: relative; height: calc(var(--tela) * 3.2); }
+.office { position: relative; height: calc(var(--tela) * 2.6); } /* brief-v4.3 §4.1 */
 .k2-wrap { position: absolute; left: 0; right: 0; top: 13vh; padding: 0 var(--m); text-align: center; transform-origin: 50% 0; }
 .k2 { margin: 0 auto; max-width: none; font-size: var(--type-hook-size); line-height: 1.02; letter-spacing: var(--type-hook-tracking); text-wrap: nowrap; }
 .k2-line { display: block; }
 .k2-swap { display: inline-grid; vertical-align: bottom; }
 .k2-old { display: none; }
 .k2-new { grid-area: 1 / 1; }
-.scenes .k2-line { color: rgb(244 241 248 / .55); }
+.scenes .k2-line { color: var(--ink-2); } /* §7.3: 'Sometimes late.' in tone 2, APCA ≥ 60 at 88 px */
 .scenes .k2-line[data-swapped="true"] { color: var(--ink); }
 .scenes .k2-swap { width: var(--w-new, auto); clip-path: inset(0 -100vw); } /* final width from the start; clips only top/bottom */
 /* FLIP (no layout animation): before the swap the rest of the line sits --k2-d to the right (the extra width of
@@ -212,11 +267,11 @@ img.poster { object-fit: cover; }
 .office-fallback img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%;
   -webkit-mask: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%); mask: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%); } /* taste-skill-ignore: ?btn=orbit is the owner's reference (conic + mask + dot grain), or a soft mask, not a fill */
 .gl-on .office-fallback { display: none; }
-.desk-tag { position: absolute; left: 0; top: 0; padding: 4px 9px; border-radius: 4px; background: var(--ground); font-size: var(--type-label-size); font-weight: 500; white-space: nowrap; opacity: 0; transition: opacity .3s ease; pointer-events: none; }
-.desk-tag[data-on="true"] { opacity: 1; }
-.balloon { position: absolute; left: 0; top: 0; transform: translate(-50%, calc(-100% - 26px)) translateY(8px); padding: 10px 14px; border-radius: 10px; background: var(--ground); color: var(--ink); font-weight: 500; font-size: 16px; line-height: 1.3; white-space: nowrap; opacity: 0; transition: opacity .3s ease, transform .3s var(--ease-out); pointer-events: none; }
+.desk-tag { position: absolute; left: 0; top: 0; padding: 4px 9px; border-radius: 4px; background: var(--ground); font-size: var(--type-label-size); font-weight: 500; white-space: nowrap; opacity: 0; visibility: hidden; transition: opacity .3s ease, visibility 0s .3s; pointer-events: none; }
+.desk-tag[data-on="true"] { opacity: 1; visibility: visible; transition: opacity .3s ease, visibility 0s; }
+.balloon { position: absolute; left: 0; top: 0; transform: translate(-50%, calc(-100% - 26px)) translateY(8px); padding: 10px 14px; border-radius: 10px; background: var(--ground); color: var(--ink); font-weight: 500; font-size: 16px; line-height: 1.3; white-space: nowrap; opacity: 0; visibility: hidden; transition: opacity .3s ease, transform .3s var(--ease-out), visibility 0s .3s; pointer-events: none; } /* hidden once faded: axe measured a fading balloon at 1.14:1 */
 .balloon::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 22px; background: rgb(244 241 248 / .5); }
-.balloon[data-on="true"] { opacity: 1; transform: translate(-50%, calc(-100% - 26px)); }
+.balloon[data-on="true"] { opacity: 1; visibility: visible; transform: translate(-50%, calc(-100% - 26px)); transition: opacity .3s ease, transform .3s var(--ease-out), visibility 0s; }
 .balloon[data-on="true"]::after { animation: stem-pulse 1.8s ease-in-out infinite alternate; } /* the stem pulses; the text stays still */
 @keyframes stem-pulse { from { opacity: .35; } to { opacity: 1; } }
 .dayline { position: absolute; left: 8%; right: 8%; bottom: -34px; height: 30px; container-type: inline-size; opacity: 0; transition: opacity .3s ease; }
@@ -235,7 +290,7 @@ img.poster { object-fit: cover; }
 :is(.reduced, .no-js) .k2 { font-size: var(--type-h2-size); text-wrap: balance; }
 :is(.reduced, .no-js) .office-quad { position: relative; top: 0; margin-top: 40px; height: auto; aspect-ratio: 1440 / 1000; width: min(100% - 2 * var(--m), 1100px); }
 :is(.reduced, .no-js) .office-quad .office-fallback img { height: 100%; }
-:is(.reduced, .no-js) .office-quad > :not(.office-fallback) { display: none; }
+:is(.reduced, .no-js) .office-quad > :not(.office-fallback, noscript) { display: none; } /* v54: without JS the picture sits in a <noscript> */
 :is(.reduced, .no-js) .office-fallback { display: block; }
 :is(.reduced, .no-js) .talk-seq { display: none; } /* v4.6: the live exchange (phone) sat on top of the 90-day list; the static list below already has the talk */
 :is(.reduced, .no-js) .office-text { display: grid; gap: 18px; max-width: 760px; margin: 32px auto 0; padding: 0 var(--m); }
@@ -243,28 +298,27 @@ img.poster { object-fit: cover; }
 .desk-list { grid-template-columns: repeat(3, auto); justify-content: start; column-gap: 32px; }
 
 /* you (§4.4/§4.5): the phone is the vertex of the network; the H2 splits on its flanks */
-.you { position: relative; height: calc(var(--tela) * 3.3); } /* v4.2: 2.6 + 0.4 (the finale) + 0.3 (T5, the silence) */
+.you { position: relative; height: calc(var(--tela) * (2 + var(--you-hold, 0))); } /* brief-v4.3 §4.4: 2.0 screens + the v5.0 hold of the finale (--you-hold = layout.ts YOU_HOLD, set on the section) */
 .you-h { position: absolute; left: var(--m); right: var(--m); top: 30vh; max-width: none; display: flex; justify-content: space-between; pointer-events: none; }
 .you-h span { display: block; max-width: 5.6em; }
 .you-a { margin-right: .25em; }
 .you-b { text-align: right; opacity: .45; transition: opacity .3s ease-out; }
 .you-b[data-k4="on"] { opacity: 1; }
-.phone { position: absolute; left: 50%; top: 7vh; width: 340px; margin-left: -170px; padding: 10px; border-radius: 36px; background: var(--surface); }
-.screen { min-height: 436px; padding: 22px 18px 14px; border-radius: 28px; background: #0D0B11; display: flex; flex-direction: column; }
+.phone { position: absolute; left: 50%; top: 18vh; width: min(440px, calc(var(--tela) * .45)); padding: 10px; border-radius: 36px; background: var(--surface); }
+.screen { position: relative; isolation: isolate; min-height: calc(var(--tela) * .64 - 20px); padding: 26px 22px 16px; border-radius: 28px; background: #0D0B11; display: flex; flex-direction: column; } /* §4.4: 64vh */
 .order { display: grid; gap: 10px; transition: opacity .5s var(--ease-out), transform .5s var(--ease-out); }
-.order[data-in="false"] { opacity: 0; transform: translateY(18px); }
 .phone[data-state="sent"] .order .preview, .phone[data-state="declined"] .order .preview { opacity: .5; }
 .order .top { color: var(--ink-2); font-size: var(--type-label-size); font-weight: 500; }
 .ask { font: 500 18px/1.3 var(--font-text); }
-.why { color: var(--ink-2); font-size: 15px; line-height: 1.4; }
-.preview { padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 15px; line-height: 1.4; transition: opacity .3s ease; }
+.why { color: var(--ink-2); font-size: 16px; line-height: 1.45; }
+.preview { padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 16px; line-height: 1.45; transition: opacity .3s ease; }
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
 .approve { position: relative; grid-column: 1 / -1; height: 52px; }
 .approve-base, .approve-fill { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 /* each layer is its own stacking context: the base label (z-index 1 inside .btn) must never paint over the fill */
 .approve-base { z-index: 0; }
 .approve-fill { z-index: 1; }
-.approve .approve-base.btn { background: #2B2732; color: rgb(244 241 248 / .6); cursor: default; animation: none; box-shadow: none; }
+.approve .approve-base.btn { background: #2B2732; color: rgb(244 241 248 / .6); cursor: default; animation: none; box-shadow: none; } /* taste-skill-ignore: a reset to none, no shadow is drawn */
 .approve-fill { cursor: default; clip-path: inset(0 calc((1 - var(--fill, 0)) * 100%) 0 0); }
 .decline { position: relative; isolation: isolate; overflow: hidden; }
 .decline-fill { position: absolute; inset: 0; z-index: -1; background: #3A3542; clip-path: inset(0 calc((1 - var(--fill, 0)) * 100%) 0 0); }
@@ -273,7 +327,32 @@ img.poster { object-fit: cover; }
 /* brief-v4.2 §6, "end of shift": ring of energy (≤ 600 ms, the only green) → the screen fills bottom-up with the
    button's silk (the lilac Núcleo: a phone-sized mint fill would break the ≤ 1.5 % green rule) → a column the
    width of the phone leaves through the top (850 ms, 1-(1-t)²) → the lock screen. Replays only going forward. */
-.phone { transform: scale(calc(1 - .08 * var(--rec, 0))); opacity: calc(1 - .4 * var(--rec, 0)); }
+.phone { transform: translateX(-50%); }
+/* brief-v4.4 §5.3 C4: the screen lights from where the order arrives (top centre), a circle over s .80–1, with a
+   2-level purple ring at its front; the rim (the phone's frame) is there from the start */
+.phone[data-reveal="on"] .screen { -webkit-clip-path: circle(var(--rv, 0px) at 50% 0); clip-path: circle(var(--rv, 0px) at 50% 0); }
+.rv-ring { display: none; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: repeating-conic-gradient(#C9A2FF 0 25%, transparent 0 50%) 0 0 / 4px 4px; /* taste-skill-ignore: a 4-px checker (Bayer dither of the light), not a gradient fill */
+  -webkit-mask: radial-gradient(circle at 50% 0, transparent 0 calc(var(--rv, 0px) - 6px), #000 calc(var(--rv, 0px) - 6px) calc(var(--rv, 0px) - 3px), rgb(0 0 0 / .5) calc(var(--rv, 0px) - 3px) var(--rv, 0px), transparent var(--rv, 0px)); mask: radial-gradient(circle at 50% 0, transparent 0 calc(var(--rv, 0px) - 6px), #000 calc(var(--rv, 0px) - 6px) calc(var(--rv, 0px) - 3px), rgb(0 0 0 / .5) calc(var(--rv, 0px) - 3px) var(--rv, 0px), transparent var(--rv, 0px)); } /* taste-skill-ignore: hard-stop masks that cut the dither into a ring, not a fill */
+.phone[data-reveal="on"] .rv-ring { display: block; }
+/* brief-v4.4 §6.2 C5: after "All clear" the phone comes apart where it stands, in 4 Bayer steps (masks built in
+   domScenes), while its light flies to the FAQ as fragments (engine) */
+.phone[data-dis="1"] { -webkit-mask: var(--dis1) 0 0 / 8px 8px; mask: var(--dis1) 0 0 / 8px 8px; }
+.phone[data-dis="2"] { -webkit-mask: var(--dis2) 0 0 / 8px 8px; mask: var(--dis2) 0 0 / 8px 8px; }
+.phone[data-dis="3"] { -webkit-mask: var(--dis3) 0 0 / 8px 8px; mask: var(--dis3) 0 0 / 8px 8px; }
+.phone[data-dis="4"], .phone[data-dis="4"] * { visibility: hidden !important; } /* nothing inside may stay (a fill with its own visibility) */
+.phone:is([data-dis="1"], [data-dis="2"], [data-dis="3"], [data-dis="4"]) ~ .net-tag { opacity: 0; } /* the agent's name leaves with its phone */
+/* §4.4 the gesture: the label follows the scroll (Approving… → Approved), a 2-px line under the screen follows the fill,
+   and at 100 % the button presses once (scale .96 → 1, 140 ms) */
+.g-go, .g-done { display: none; }
+.phone[data-g="going"] :is(.g-idle, .g-done), .phone[data-g="done"] :is(.g-idle, .g-go) { display: none; }
+.phone[data-g="going"] .g-go, .phone[data-g="done"] .g-done { display: inline; }
+.phone[data-g="done"] :is(.approve-fill, .decline) { animation: press .14s var(--ease-out) 1; }
+@keyframes press { from { transform: scale(.96); } to { transform: none; } }
+.phone-prog { position: absolute; left: 22px; right: 22px; bottom: 8px; height: 2px; background: #FBF7FF; transform-origin: 0 50%; transform: scaleX(var(--fill, 0)); }
+.phone[data-state="clear"] .phone-prog, .phone[data-g="done"] .phone-prog { opacity: 0; }
+.scroll-hint { position: absolute; left: 50%; bottom: 4vh; transform: translateX(-50%); color: var(--ink-2); font-size: var(--type-label-size); white-space: nowrap; transition: opacity .3s ease; }
+.scroll-hint[data-show="false"] { opacity: 0; }
 .phone-energy, .phone-colw { position: absolute; pointer-events: none; display: none; }
 .phone[data-state="clear"] :is(.phone-energy, .phone-colw) { display: block; }
 .phone-energy { inset: -14px; padding: 14px; border-radius: 50px; opacity: 0;
@@ -285,18 +364,18 @@ img.poster { object-fit: cover; }
 .phone-col { position: absolute; left: 0; right: 0; bottom: 0; height: 42vh; transform: translateY(100%);
   background: repeating-conic-gradient(#FBF7FF 0 25%, #C9A2FF 0 50%) 0 0 / 4px 4px; animation: col-up .85s cubic-bezier(.33, 1, .68, 1) .6s forwards; } /* taste-skill-ignore: a 4-px checker (Bayer dither of the energy / the light), not a gradient fill */
 @keyframes col-up { 0% { transform: translateY(100%); opacity: 1; } 85% { opacity: 1; } 100% { transform: translateY(-262%); opacity: 0; } }
-.lock { position: relative; flex: 1; display: grid; grid-template-rows: 1fr auto auto 1.4fr; justify-items: center; text-align: center; gap: 14px; }
-.lock-fill { position: absolute; inset: -22px -18px -14px; border-radius: 28px; /* v4.5: silk-wall.png is periodic by construction (docs/redesign/proto-v45/tools/silk-wall.py); the 240-px button silk repeated here showed a seam */ background: #C9A2FF url(./assets/silk-wall.png) 50% 0 / 480px 192px; image-rendering: pixelated; clip-path: inset(100% 0 0 0); animation: lock-fill .3s cubic-bezier(.45, 0, .2, 1) .6s forwards, settle .3s steps(3, end) 1.45s forwards; }
+.lock { position: relative; z-index: 1; flex: 1; display: grid; grid-template-rows: 1fr auto auto 1.4fr; justify-items: center; text-align: center; gap: 14px; }
+.lock-fill { position: absolute; inset: 0; z-index: 0; border-radius: inherit; /* brief-v4.5 §9.3: a child of the .screen, its whole box (it was the .lock's, ~70 px at the foot) */ /* v4.5: silk-wall.png is periodic by construction (docs/redesign/proto-v45/tools/silk-wall.py); the 240-px button silk repeated here showed a seam */ background: #C9A2FF url(./assets/silk-wall.png) 50% 0 / 480px 192px; image-rendering: pixelated; clip-path: inset(100% 0 0 0); animation: lock-fill .3s cubic-bezier(.45, 0, .2, 1) .15s forwards, settle .2s steps(2, end) .45s forwards; } /* v54 (jury v53: "All clear" at 1.3:1 at 390 while the silk was still bright): the silk settles by .65 s and only then the text comes in */ /* v5.0: the finale in .85 s (was 1.8 s): the text is read sooner (layout.ts CLEAR_IN_MS) */
 @keyframes lock-fill { to { clip-path: inset(0); } }
 /* v4.3: the screen stays lit after the column (the silk settles at 24 %): the finale ends luminous, not off */
 @keyframes settle { to { opacity: .24; } }
 .phone[data-state="clear"] { background: #2A1F3A; }
 .phone[data-state="clear"] ~ .net-tag { opacity: 0; }
-.lock > p { position: relative; opacity: 0; animation: on .3s var(--ease-out) 1.5s forwards; }
+.lock > p { position: relative; opacity: 0; animation: on .3s var(--ease-out) .65s forwards; } /* in at .95 s = layout.ts CLEAR_IN_MS; starts only when the silk has settled at 24 % (v54) */
 @keyframes on { to { opacity: 1; } }
-.lock-time { grid-row: 2; font: 400 56px/1 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.lock-time { grid-row: 2; font: 400 var(--type-h2-size)/1 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .lock-status { grid-row: 3; font: 500 18px/1.35 var(--font-text); }
-.lock-sum { grid-row: 4; align-self: start; color: var(--ink-2); font-size: 13px; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.lock-sum { grid-row: 4; align-self: start; color: var(--ink-2); font-size: var(--type-label-size); font-variant-numeric: tabular-nums; }
 .lock-mini .lock { min-height: 260px; }
 .lock-mini .lock > p { opacity: 1; animation: none; }
 .lock-mini .lock-fill { display: none; }
@@ -308,33 +387,32 @@ img.poster { object-fit: cover; }
 :is(.reduced, .no-js) .you-stage > :not(.you-h) { display: none; }
 :is(.reduced, .no-js) .you-h { position: static; display: block; }
 :is(.reduced, .no-js) .you-h span { display: inline; max-width: none; opacity: 1; }
-:is(.reduced, .no-js) .phone-static { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gut); margin-top: 40px; }
+:is(.reduced, .no-js) .phone-static { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gut); margin-top: 40px; }
+.mini-out { color: var(--ink); font-weight: 500; }
 .phone-mini { display: grid; gap: 10px; align-content: start; padding: 20px; border-radius: 24px; background: var(--surface); }
 
-/* faq (§4.8): balloons on the logo's field, a sticky title, a reading cursor; nothing ever overlaps */
-.faq { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gut); min-height: calc(var(--tela) * 1.6); }
-.faq-head { grid-column: 1 / span 4; }
-.faq-head h2 { position: sticky; top: 16vh; }
-.faq-list { grid-column: 5 / span 8; list-style: none; margin: 0; padding: 6vh 0 6vh; display: grid; gap: 7vh; container-type: inline-size; }
-.faq-item { position: relative; width: min(47%, 430px); padding: 4px 4px 14px; border-radius: 14px; background: var(--ground); }
-.faq-item[data-side="l"] { justify-self: start; }
-.faq-item[data-side="r"] { justify-self: end; }
-.faq-item::before { content: ""; position: absolute; top: 30px; height: 1px; width: calc(50cqw - 100%); background: rgb(244 241 248 / .2); } /* taste-skill-ignore: the 1 px stem that ties a question to its point (brief-v4.1 §4.8) */
-.faq-item[data-side="l"]::before { left: 100%; }
-.faq-item[data-side="r"]::before { right: 100%; }
-.faq-q { display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 52px; padding: 14px 14px 6px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); text-align: left; font: 500 18px/1.35 var(--font-text); cursor: pointer; }
-.faq-dot { flex: none; width: 6px; height: 6px; margin-top: .55em; background: #C9A2FF; transition: background-color .24s ease; }
-.faq-a { padding: 2px 14px 0 32px; color: var(--ink-2); font-size: 16px; line-height: 1.5; transition: opacity .24s ease, transform .24s var(--ease-out); }
-[data-cursor="on"] .faq-item[data-state="ahead"] .faq-q { color: rgb(244 241 248 / .82); }
-[data-cursor="on"] .faq-item[data-state="ahead"] .faq-dot { background: #3A3542; }
-[data-cursor="on"] .faq-item[data-state="ahead"] .faq-a { opacity: 0; transform: translateY(6px); }
-[data-cursor="on"] .faq-item[data-state="done"] .faq-a { opacity: .7; }
+/* faq (brief-v4.3 §5.2): one screen; H2 + the phone of the yes (still) in c1–c4; the answers always open, 2 columns */
+.faq { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gut); padding-top: 96px; padding-bottom: 64px; }
+.faq-head { grid-column: 1 / span 4; align-self: start; position: sticky; top: 16vh; } /* brief-v4.4 §7: the H2 held */
+.faq-contact { margin: 32px 0 0; max-width: 24ch; color: var(--ink-2); font-size: 16px; line-height: 1.5; }
+.faq-contact a { display: inline-flex; align-items: center; min-height: 44px; margin-right: 16px; color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.faq-list { grid-column: 5 / span 8; columns: 2; column-gap: calc(2 * var(--gut)); }
+.faq-item { break-inside: avoid; padding: 24px 0; border-top: 1px solid rgb(244 241 248 / .08); } /* taste-skill-ignore: brief-v4.3 §5.2 asks for hairlines (alpha .08) between the items */
+.faq-q { display: block; list-style: none; color: var(--ink); font: 500 var(--type-lead-size, 18px)/1.35 var(--font-text); cursor: default; transition: color .24s ease; }
+.faq-q::-webkit-details-marker { display: none; }
+.faq-a { margin-top: 10px; color: var(--ink-2); font-size: 16px; line-height: 1.5; }
+[data-cursor="on"] .faq-item[data-state="other"] .faq-q { color: rgb(244 241 248 / .82); }
 
 /* final (§4.7): the logo assembles above the H2; the question forms with it (K5); no cone */
-.final { display: grid; justify-items: center; text-align: center; padding-top: clamp(48px, 6vw, 96px); padding-bottom: 150px; }
-.final-logo { width: calc(22vh * 30 / 28); height: 22vh; margin-bottom: 48px; }
-.final-tri-fallback { display: block; width: 100%; height: 100%; }
-.gl-on .final-tri-fallback { display: none; }
+.final { display: grid; justify-items: center; text-align: center; padding-top: 72px; padding-bottom: 48px; }
+/* brief-v4.3 §5.3: the six agents of the hero's base, in a row; each lights with a word of the question (K5) */
+.final-dots { display: flex; justify-content: space-between; width: min(480px, 100%); margin-bottom: 96px; }
+.fd { position: relative; width: 8px; height: 8px; background: repeating-conic-gradient(#FBF7FF 0 25%, #C9A2FF 0 50%) 0 0 / 4px 4px; transition: opacity .2s steps(2, end); } /* taste-skill-ignore: a 4-px checker (Bayer dither of the light), not a gradient fill */
+.fd::before { content: ""; position: absolute; inset: -12px; background: repeating-conic-gradient(#9232EA 0 25%, transparent 0 50%) 0 0 / 4px 4px; /* taste-skill-ignore: a 4-px checker (Bayer dither of the light), not a gradient fill */
+  -webkit-mask: radial-gradient(closest-side, rgb(0 0 0 / .6) 0 50%, rgb(0 0 0 / .25) 50% 99%, transparent 100%); mask: radial-gradient(closest-side, rgb(0 0 0 / .6) 0 50%, rgb(0 0 0 / .25) 50% 99%, transparent 100%); } /* taste-skill-ignore: hard-stop masks that cut the dither into a disc / a ring, not a fill */
+.scenes .fd[data-on="false"] { opacity: .2; }
+.fd-hit { position: absolute; left: -18px; top: -18px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.fd-hit:hover .agent-name, .fd-hit:focus-visible .agent-name { opacity: 1; transform: translate(-50%, 0); }
 .final h2 { position: relative; z-index: 1; max-width: none; }
 .k5-w { display: inline-block; white-space: pre; opacity: var(--on, 1); transform: translateY(calc((1 - var(--on, 1)) * .4em)); }
 .scenes .k5-w { --on: 0; }
@@ -346,16 +424,16 @@ img.poster { object-fit: cover; }
 
 /* footer (v4.5, owner's reference footers-elegantes.png): thin columns of links, then the landscape: the logo as a
    mountain of points (footPeak.ts) standing on the giant wordmark, cut into the same dither as the light */
-.foot { position: relative; z-index: 1; overflow: hidden; padding: clamp(72px, 9vw, 128px) var(--m) 0; color: var(--ink-2); font-size: 15px; }
+.foot { position: relative; z-index: 1; overflow: hidden; padding: 40px var(--m) 0; color: var(--ink-2); font-size: 15px; }
 .foot-cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--gut); }
-.foot-h { margin-bottom: 14px; font: 500 12px/1 var(--font-text); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.foot-h { margin-bottom: 6px; font: 500 var(--type-label-size)/1.3 var(--font-text); color: var(--ink-2); } /* §5.4: sentence case, Label 15, <h3> */
 .foot-col ul { margin: 0; padding: 0; list-style: none; display: grid; justify-items: start; }
-.foot-col a { min-height: 40px; display: inline-flex; align-items: center; color: var(--ink); text-decoration: none; text-underline-offset: 4px; }
+.foot-col a { min-height: 44px; display: inline-flex; align-items: center; color: var(--ink); text-decoration: none; text-underline-offset: 4px; }
 .foot-col a:hover { text-decoration: underline; }
-.foot-live, .foot-dim { min-height: 40px; display: flex; align-items: center; font-size: 13px; letter-spacing: .02em; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.foot-live, .foot-dim { min-height: 44px; display: flex; align-items: center; font-size: var(--type-label-size); font-variant-numeric: tabular-nums; color: var(--ink-2); }
 .foot-live { text-wrap: balance; }
 .foot-note { min-height: 0; padding-top: 10px; max-width: 26ch; line-height: 1.45; }
-.foot-land { --peak-base: .62; position: relative; height: clamp(360px, 46vw, 700px); margin: clamp(40px, 6vw, 88px) calc(-1 * var(--m)) 0; }
+.foot-land { --peak-base: .62; position: relative; height: clamp(320px, 38vw, 560px); margin: 24px calc(-1 * var(--m)) 0; }
 .foot-peak { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 /* the wordmark is the ground the mountain stands on: brand-purple dither, its density falling in 4 hard steps. v4.6
    (owner: "too dark, it almost disappears behind the mountain"): brighter checker, gentler steps, and it sits ABOVE
@@ -363,7 +441,7 @@ img.poster { object-fit: cover; }
 .foot-word { z-index: 1; position: absolute; left: 0; right: 0; bottom: 0; margin: 0; text-align: center; font: 400 24.4vw/1 var(--font-display); font-stretch: 87.5%; letter-spacing: -.035em; white-space: nowrap;
   color: transparent; background: repeating-conic-gradient(#9232EA 0 25%, #2B1650 0 50%) 0 0 / 4px 4px; -webkit-background-clip: text; background-clip: text; /* taste-skill-ignore: a 4-px checker (Bayer dither of the light) clipped to the letters, not a gradient fill */
   -webkit-mask: linear-gradient(#000 0 34%, rgb(0 0 0 / .86) 34% 52%, rgb(0 0 0 / .7) 52% 68%, rgb(0 0 0 / .54) 68%); mask: linear-gradient(#000 0 34%, rgb(0 0 0 / .86) 34% 52%, rgb(0 0 0 / .7) 52% 68%, rgb(0 0 0 / .54) 68%); } /* taste-skill-ignore: four hard-stop density levels of the dither, not a gradient fill */
-.foot-copy { position: relative; padding: 18px 0 28px; font-size: 13px; letter-spacing: .02em; }
+.foot-copy { position: relative; padding: 18px 0 28px; font-size: var(--type-label-size); }
 .no-js .foot-peak { display: none; }
 
 /* poster capture mode (?poster=1): only the canvas */
@@ -374,6 +452,10 @@ img.poster { object-fit: cover; }
   .form-sec { grid-template-columns: 1fr; }
   .form-copy, .form-sec .lead { grid-column: 1 / -1; }
   .form-sec .lead { margin-top: 36px; max-width: 640px; }
+  .you-h { top: 72px; display: block; }
+  .you-h span { display: inline; max-width: none; }
+  .you-b { text-align: left; }
+  .phone { top: calc(72px + 2.3em + 40px); }
 }
 
 /* ---------- phone (390) */
@@ -388,29 +470,36 @@ img.poster { object-fit: cover; }
   .blocks, .lead.compact .blocks { grid-template-columns: 1fr 1fr; }
   .horizon { bottom: 40px; left: 25%; right: 25%; }
   .night { height: calc(var(--tela) * 1.2); }
-  .moon-path { left: 52%; right: 30px; top: 172px; height: 56px; }
+  .moon-path { left: 200px; right: auto; width: 130px; top: 172px; height: 56px; } /* §6.5: the moon's centre runs x 200 → 330 */
   .moon svg { width: 26px; height: 26px; }
-  .moon { left: -13px; top: -13px; grid-auto-flow: column; align-items: center; }
+  .moon { left: auto; right: calc(100% - 13px); top: -13px; grid-auto-flow: column; align-items: center; }
+  .moon-t { order: -1; } /* the hour sits left of the moon: the box never passes x 370 */
   .shift-office { left: var(--m); right: var(--m); width: auto; top: 270px; bottom: auto; }
-  .desks { grid-template-columns: repeat(3, 1fr); row-gap: 14px; margin-top: 10px; }
+  .desks { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 14px; margin-top: 10px; }
   .desk:nth-child(-n+3) { padding-left: 0; }
-  .desk:nth-child(-n+3) .fig { width: 48px; height: 48px; }
-  .fig { width: 48px; height: 48px; }
+  .desk:nth-child(-n+3) .fig, .fig { width: 88px; height: 88px; } /* §6.2: 88 px, no perspective */
   .beam { height: 48px; }
   .desks { row-gap: 14px; margin-top: 10px; }
-  .dname { font-size: 13px; }
+  .dname { font-size: var(--type-label-size); }
   .dname .long { display: none; }
   .dname .short { display: inline; }
-  .dtask { font-size: 12px; white-space: normal; max-width: 13ch; }
+  /* §4.5 at 390: name, hour, task (≤ 2 lines); no line before (it fades as it leaves) */
+  .dh { display: block; }
+  .dline.prev { opacity: 0; }
+  .dboard { height: calc(var(--type-label-size) * 1.25 + var(--type-lead-size, 18px) * 1.25 * 2 + 2px); }
   .home { left: var(--m); right: var(--m); width: auto; top: auto; bottom: 28px; padding: 14px 0 0; border-left: 0; border-top: 1px solid rgb(244 241 248 / .08); grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 16px; row-gap: 4px; align-items: center; } /* taste-skill-ignore: brief-v4.2 §5.4, the Office/Home wire turns horizontal at 390 */
-  .home .place { grid-row: 1 / 3; align-self: start; }
+  .home { grid-template-columns: auto auto 1fr; }
+  .home .place { grid-row: 1 / 3; grid-column: 1; align-self: center; }
+  .home .sleeper { grid-row: 1 / 3; grid-column: 2; }
+  .home .tally { grid-row: 1; grid-column: 3; }
+  .home .wait { grid-row: 2; grid-column: 3; }
   .sleeper { width: 112px; height: 56px; margin-top: 0; }
-  .office { height: calc(var(--tela) * 2.6); }
+  .office { height: calc(var(--tela) * 2.2); } /* brief-v4.3 §4.1 */
   .k2-wrap { top: 76px; text-align: left; }
   /* v4.6 (owner: the phrase stays "Never asks for a raise."): sized to the column so the agent line holds one line down
      to 360 (measured 344 px of 350 at 390, 318 of 320 at 360, both engines); only line 1 plays the human → agent swap
      on a phone, because the human form "Sometimes asks for a raise." cannot fit one line there */
-  .k2 { font-size: min(44px, 11.1vw); text-wrap: balance; }
+  .k2 { font-size: min(var(--type-hook-size), 11.1vw); text-wrap: balance; } /* v4.3 §8.1: the Display size (one of the 5) */
   .scenes .k2-line { transform: none; } /* left-aligned at 390: only the rest of the line moves */
   .scenes [data-k2-line="1"] .k2-old { display: none; }
   .scenes [data-k2-line="1"] .k2-new, .scenes [data-k2-line="1"] .k2-rest { transform: none; opacity: 1; visibility: visible; transition: none; }
@@ -422,26 +511,166 @@ img.poster { object-fit: cover; }
   .talk-seq li[data-on="true"] { display: grid; gap: 2px; }
   .who { color: var(--ink-2); font-size: var(--type-label-size); }
   .desk-list { grid-template-columns: 1fr 1fr; }
-  .you { height: calc(var(--tela) * 2.8); }
+  .you { height: calc(var(--tela) * (2 + var(--you-hold, 0))); }
   .foot-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 32px; }
   .foot-land { --peak-base: .76; height: 112vw; }
   /* v4.3 green dose on a phone (≤ 1.5 % of the screen): the field button keeps its silk only as a 3-px rim, the
      label and arrow in mint on the dark; compact 44 px. The phone's Approve fill keeps the full material. */
   .btn-field .btn:not(.approve-base):not(.approve-fill):not(:disabled) { min-height: 44px; padding: 0 16px 0 18px; border: 3px solid transparent; color: var(--mint); background: linear-gradient(#0E0D12, #0E0D12) padding-box, #58F6B1 url(./assets/silk-mint.png) 0 0 / 240px 96px border-box; } /* taste-skill-ignore: a flat dark fill clipped to the padding box over the silk rim, not a gradient */
-  .lock-time { font-size: 44px; }
   .you-h { top: 68px; display: block; }
   .you-h span { display: inline; max-width: none; }
   .you-b { text-align: left; }
-  .phone { top: calc(68px + 2.3em + 70px); width: 300px; margin-left: -150px; padding: 8px; border-radius: 32px; }
-  .screen { min-height: 0; height: 410px; padding: 18px 14px 10px; border-radius: 26px; }
+  .phone { top: calc(68px + 2.3em + 56px); width: 300px; padding: 8px; border-radius: 32px; transform: translateX(-50%); }
+  .screen { min-height: 0; height: 430px; padding: 18px 14px 12px; border-radius: 26px; }
+  .phone-prog { left: 14px; right: 14px; }
+  /* §4.4 the green on a phone: the Approve fill takes the field button's 390 look (silk only as a 3-px rim, mint label on
+     the dark): a phone-wide mint fill alone was 4.3 % of the screen (greenPct 3.5 %) */
+  .btn-field .approve .approve-fill { border: 3px solid transparent; color: var(--mint); background: linear-gradient(#0E0D12, #0E0D12) padding-box, #58F6B1 url(./assets/silk-mint.png) 0 0 / 240px 96px border-box; } /* taste-skill-ignore: a flat dark fill clipped to the padding box over the silk rim, not a gradient */
+  .btn-field .approve .approve-base { border: 3px solid transparent; }
+  /* §4.4 the green on a phone: the ring of energy is a 2-px dotted line at 40 % */
+  .phone-energy { inset: -6px; padding: 2px; border-radius: 38px; animation-name: energy-s; }
+  @keyframes energy-s { 0% { opacity: 0; } 15%, 80% { opacity: .4; } 100% { opacity: 0; } }
+  .scroll-hint { bottom: 3vh; }
   .why { display: none; }
   :is(.reduced, .no-js) .phone-static { grid-template-columns: 1fr; }
-  .faq-head h2 { position: static; }
-  .faq-list { padding: 32px 0 12vh; gap: 40px; }
-  .faq-item, .faq-item[data-side] { justify-self: stretch; width: auto; margin-left: 24px; }
-  .faq-item::before, .faq-item[data-side]::before { left: auto; right: 100%; width: 24px; }
-  .final-logo { width: 129px; height: 120px; }
+  .faq { padding-top: 72px; padding-bottom: 40px; }
+  .faq-head { display: contents; } /* §7 at 390: the H2, the list, then the human way out */
+  .faq .k1 { order: 0; margin-bottom: 16px; }
+  .faq-list { order: 1; }
+  .faq-contact { order: 2; margin-top: 84px; max-width: none; } /* below the orla's base (20 + 40 px) + 24: never on the grain */
+  .scenes [data-in="voice-body"]:not([data-in-state="on"]) { transform: translate3d(0, 8px, 0); }
+  .faq-list { columns: 1; }
+  .faq-item { padding: 0; }
+  .faq-q { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; padding: 14px 0; cursor: pointer; }
+  .faq-q::after { content: "+"; flex: none; font-weight: 400; } /* §5.2: the drawn +, not an icon in a circle */
+  .faq-item[open] > .faq-q::after { content: "−"; }
+  .faq-a { margin: 0 0 18px; }
+  .final-dots { width: 220px; margin-bottom: 64px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+/* ================= brief-v4.5 ================= */
+.intro-skipbtn { position: fixed; z-index: 5; left: -999px; top: 12px; }
+.intro-skipbtn:focus { left: 12px; }
+html:not(.intro) .intro-skipbtn { display: none; }
+
+/* §6 the header: 80 px, the mark at 28 px, "Diagnosis" in the accent */
+.bar { height: 80px; }
+.brand { gap: 12px; min-height: 44px; font-size: 22px; }
+.brand svg { width: 36px; height: 36px; } /* v54 (owner: the header logo bigger): 36 px at 1440 (was 28) */
+.bar-link { color: var(--mint); text-decoration-line: underline; text-decoration-color: rgb(88 246 177 / .45); text-decoration-thickness: 1.5px; }
+.bar-link:hover { text-decoration-color: var(--mint); text-decoration-thickness: 3px; }
+.bar-link:focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; border-radius: 2px; }
+
+/* v52 the long hook (copy v5.4 B), set back to the scale of before v4.5 (owner: "$250K per month" too big): the giant
+   line takes the hook size (104 / 40 px, the existing token), the frame the ONE new step the orchestrator allowed (36 / 21
+   px, 64 % tone). Text on the left, the network on the right, as before; the lines are inline + <br> (one LCP block) */
+.hero h1 { max-width: min(100%, 47rem); font-size: var(--type-frame-size); line-height: var(--type-frame-leading); letter-spacing: -0.012em; }
+.hero h1 .h-frame { color: rgb(244 241 248 / .64); }
+.hero h1 .h-giant { display: inline-block; margin: -.06em 0 .06em; font-weight: inherit; font-size: var(--type-hook-size); line-height: var(--type-hook-leading); letter-spacing: var(--type-hook-tracking); white-space: nowrap; color: var(--ink); }
+.hero .lede { max-width: 52ch; margin-top: 24px; }
+.hero .lede strong { font-weight: 500; }
+
+/* §9.1 the yes: the content goes up, the network gets height; §9.2 the names under the nodes */
+.you-h { top: 120px; }
+.phone { top: 120px; }
+.screen { min-height: 0; height: calc(min(52vh, 480px) - 20px); }
+.net-names { position: absolute; inset: 0; display: none; pointer-events: none; }
+.gl-on .net-names { display: block; }
+.nn { position: absolute; left: 0; top: 0; display: grid; justify-items: center; white-space: nowrap; color: rgb(244 241 248 / .74); font: 500 var(--type-label-size)/1.3 var(--font-text); /* v54 (owner: "so the person sees what is happening"): 74 % ink, a reading tone (was 54 %, the AA floor) */ transition: color .24s ease-out, opacity .2s ease-out; }
+.nn[data-clash="true"] { opacity: 0; } /* v54 (jury v53, 390): a name never crosses the phone while the stage comes in */
+.nn[data-on="true"] { color: var(--ink); font-size: 18px; }
+.nn-state { display: block; height: 1.4em; overflow: hidden; overflow: clip; color: var(--ink-2); font-size: var(--type-label-size); font-variant-numeric: tabular-nums; }
+.nn-state > span { display: block; animation: nn-roll .24s cubic-bezier(.2, .75, .2, 1) both; }
+@keyframes nn-roll { from { transform: translateY(100%); } }
+.phone:is([data-dis="1"], [data-dis="2"], [data-dis="3"], [data-dis="4"]) ~ .net-names { opacity: 0; }
+
+/* §10.1 the questions enter line by line (voice-q: a mask, not K1), the answers as voice-body 120 ms later */
+.faq-item { contain: layout; } /* v54: no paint containment: it clipped the question's focus ring (outline-offset 3 px) at 390, where the item has no padding; the line mask is the .q-line's own clip */
+.faq-q .q-line { display: block; overflow: hidden; overflow: clip; padding-bottom: .1em; margin-bottom: -.1em; }
+.faq-q .q-line > span { display: block; }
+.scenes [data-in="voice-q"] .q-line > span { transition: transform .42s cubic-bezier(.2, .75, .2, 1) calc(var(--q, 0) * 70ms); }
+.scenes [data-in="voice-q"] .faq-a { transition: opacity .48s cubic-bezier(.2, .7, .2, 1) calc(var(--q, 0) * 70ms + 120ms), transform .48s cubic-bezier(.2, .7, .2, 1) calc(var(--q, 0) * 70ms + 120ms); }
+.scenes [data-in="voice-q"]:not([data-in-state="on"]) .q-line > span { transform: translateY(105%); }
+.scenes [data-in="voice-q"]:not([data-in-state="on"]) .faq-a { opacity: 0; transform: translate3d(0, 12px, 0); }
+.scenes [data-in="voice-q"]:focus-within :is(.q-line > span, .faq-a) { opacity: 1; transform: none; transition: none; }
+
+/* §11 In their own words: a stack with the wire of grain (1440), a snap rail with a bar of grain (390).
+   brief-v4.6 "a voz chega pelo fio": the nodes are the initials; the packet (engine) lands, the node lights, the quote
+   lights line by line (--ln, integer steps of 1lh), the signature writes itself. Nothing ever below 48 %. */
+@property --ln { syntax: '<integer>'; inherits: false; initial-value: 0; }
+.testi { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gut); padding-top: 160px; padding-bottom: 160px; }
+.testi-h { grid-column: 1 / -1; max-width: none; margin-bottom: 72px; } /* 2 lines at 1440 (inspect v51: the 12ch measure made 4) */
+.testi-h .t2 > span { color: rgb(244 241 248 / .56); }
+.testi-side { grid-column: 1 / span 3; align-self: start; position: sticky; top: 120px; }
+.testi-intro { color: var(--ink-2); max-width: 30ch; }
+.testi-count { margin: 24px 0 0; color: var(--ink-2); font: 500 var(--type-label-size)/1.3 var(--font-text); font-variant-numeric: tabular-nums; }
+.tcount { display: inline-grid; vertical-align: bottom; overflow: hidden; overflow: clip; height: 1.3em; color: var(--ink); } /* the night's 240-ms digit roll (.cd) */
+.testi-bar { display: none; }
+.testi-rail { position: relative; grid-column: 5 / span 7; display: grid; gap: 96px; outline-offset: 8px; }
+.testi-rail:focus-visible { outline: 2px solid #C9A2FF; border-radius: 4px; }
+/* the wire: x = the column 5's edge − 40 px, from the 1st node's centre to the 4th's. By-read = the 4-px checker in a
+   2-px column (the .horizon idiom), drawn top → bottom in 16 steps once; read = the dense grain down to the deepest node */
+.testi-wire { display: none; }
+[data-cursor] > .testi-wire { display: block; position: absolute; left: -41px; top: var(--wt, 0); width: 2px; height: var(--wh, 0); pointer-events: none; clip-path: inset(0 0 100% 0); }
+[data-cursor] > .testi-wire::before, [data-cursor] > .testi-wire::after { content: ""; position: absolute; inset: 0; }
+[data-cursor] > .testi-wire::before { background: repeating-conic-gradient(#9232EA 0 25%, transparent 0 50%) 0 0 / 4px 4px; } /* taste-skill-ignore: a 4-px checker (Bayer dither of the light), not a gradient fill */
+[data-cursor] > .testi-wire::after { background: repeating-conic-gradient(#C9A2FF 0 25%, #9232EA 0 50%) 0 0 / 4px 4px; clip-path: inset(0 0 calc(100% - var(--wl, 0px)) 0); } /* taste-skill-ignore: the dense grain of the read part, not a gradient fill */
+[data-cursor][data-drawn="true"] > .testi-wire { clip-path: inset(0); transition: clip-path .48s steps(16, end); }
+html:not(.gl-on) [data-cursor] > .testi-wire::after { transition: clip-path .24s steps(4, end); } /* no engine: the wire is the carrier */
+.tq { margin: 0; }
+.tq blockquote { margin: 0; }
+.tq p { max-width: 58ch; font-size: 18px; line-height: 1.55; }
+.tq figcaption { display: flex; align-items: center; gap: 12px; margin-top: 20px; font: 500 var(--type-label-size)/1.3 var(--font-text); }
+.tq-ini { position: relative; z-index: 1; display: grid; place-items: center; width: 32px; height: 32px; flex: none; border: 1px solid rgb(244 241 248 / .16); border-radius: 4px; background: var(--ground); font-size: 13px; letter-spacing: .04em; font-variant-numeric: tabular-nums; } /* taste-skill-ignore: brief-v4.5 §11.2, the initials in a hairline square (no colour, no avatar circle) */
+.tq-sig { display: inline-block; }
+.tq-role { color: rgb(244 241 248 / .56); }
+@media (min-width: 768px) { [data-cursor] .tq-ini { margin: 0 12px 0 -56px; } } /* the node hangs in the gutter, centred on the wire; the name stays on the quote's edge */
+/* the node: by-read (hairline) → landing (2 frames of the mint 2-px checker) → lit / read (the 25 % checker, lilac rim) */
+[data-cursor] .tq:is([data-node="lit"], [data-node="read"], [data-node="land"]) .tq-ini { border-color: #C9A2FF; color: #FBF7FF; background: #1A0B33 conic-gradient(#9232EA 0 25%, #1A0B33 0) 0 0 / 4px 4px; } /* taste-skill-ignore: a 4-px tile with one 2-px cell lit (25 % density), not a gradient fill */
+[data-cursor] .tq[data-node="read"] .tq-ini { border-color: rgb(201 162 255 / .4); }
+[data-cursor] .tq[data-node="land"] .tq-ini::after { content: ""; position: absolute; inset: 2px; border-radius: 2px; background: repeating-conic-gradient(var(--mint) 0 25%, transparent 0 50%) 0 0 / 2px 2px; animation: tq-land .09s steps(2, end) both; } /* taste-skill-ignore: the mint 2-px checker, the packet landing */
+@keyframes tq-land { from { opacity: 1; } to { opacity: 0; } }
+/* the lines: 48 % below the step, 100 % above it; current = --n lines at 60 ms each, the one that leaves = 30 ms each */
+@supports (width: 1lh) {
+  [data-cursor="on"] .tq p { --ln: 0; -webkit-mask-image: linear-gradient(#000 calc(var(--ln) * 1lh), rgb(0 0 0 / .48) 0); mask-image: linear-gradient(#000 calc(var(--ln) * 1lh), rgb(0 0 0 / .48) 0); transition: --ln calc(var(--n, 14) * 30ms) steps(var(--n, 14), jump-start); } /* steps: WebKit interpolates an <integer> without rounding (v53: 8.73), the steps keep it on whole lines */
+  [data-cursor="on"] .tq[data-state="current"] p { --ln: var(--n, 14); transition-duration: calc(var(--n, 14) * 60ms); }
+}
+@supports not (width: 1lh) {
+  .tq blockquote { transition: opacity .32s cubic-bezier(.2, .75, .2, 1); }
+  [data-cursor="on"] .tq[data-state="other"] blockquote { opacity: .48; }
+}
+/* the signature writes itself after the last line (em avaliação: ?sig=0); the text never leaves the DOM */
+/* v54 (owner via jury v53: the name of a voice not yet read was hidden by the signature): the name is ALWAYS visible; the
+   signature that writes itself is a stroke under it, drawn left → right once the voice has been read */
+[data-cursor="on"][data-sig="on"] .tq-sig { position: relative; }
+[data-cursor="on"][data-sig="on"] .tq-sig::after { content: ""; position: absolute; left: 0; right: 0; bottom: -5px; height: 2px; background: repeating-conic-gradient(#C9A2FF 0 25%, transparent 0 50%) 0 0 / 4px 4px; transform: scaleX(0); transform-origin: 0 50%; pointer-events: none; } /* taste-skill-ignore: a 4-px checker (Bayer dither of the light) cut to a 2-px stroke, not a gradient fill */
+[data-cursor="on"][data-sig="on"] .tq[data-signed="true"] .tq-sig::after { transform: scaleX(1); transition: transform .26s steps(14, end) calc(var(--n, 14) * 60ms); }
+@media (prefers-reduced-motion: reduce) { .tq :is(blockquote, p, .tq-sig), .tq .tq-sig::after, [data-cursor] > .testi-wire, [data-cursor] > .testi-wire::after { transition: none !important; } }
+
+@media (max-width: 767px) {
+  .bar { height: 64px; }
+  .brand { font-size: 19px; }
+  .brand svg { width: 30px; height: 30px; } /* v54: 36 × 390-scale (was 24) */
+  .hero .lede { max-width: none; margin-top: 18px; }
+  .you-h { top: 68px; }
+  .phone { top: 150px; } /* brief §9.1 asked 124: the H2 takes 2 lines at 390 (36 px) and the phone covered "the final word." (inspect v51) */
+  .screen { height: 384px; }
+  .nn:not([data-on="true"]) { display: none; }
+  .testi { display: flex; flex-direction: column; padding: 104px 0; }
+  .testi-h { margin: 0 var(--m) 20px; }
+  .testi-side { display: contents; }
+  .testi-intro { margin: 0 var(--m) 32px; }
+  .testi-meter { order: 3; display: flex; align-items: center; gap: 12px; margin: 20px var(--m) 0; }
+  .testi-count { margin: 0; flex: none; }
+  [data-cursor] > .testi-wire { display: none; }
+  /* the wire turns horizontal: the read part (dense grain) follows the rail's scroll; the packet's head rides its tip */
+  [data-testi] .testi-bar { display: block; position: relative; flex: 1; height: 2px; background: repeating-conic-gradient(#9232EA 0 25%, transparent 0 50%) 0 0 / 4px 4px; } /* taste-skill-ignore: a 4-px checker (Bayer dither of the light), not a gradient fill */
+  .testi-bar::after { content: ""; position: absolute; inset: 0; background: repeating-conic-gradient(#C9A2FF 0 25%, #9232EA 0 50%) 0 0 / 4px 4px; clip-path: inset(0 calc((1 - var(--bp, 0)) * 100%) 0 0); } /* taste-skill-ignore: the dense grain of the read part, not a gradient fill */
+  html:not(.no-js) .testi-rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding-inline: 20px; scroll-padding-inline: 20px; scrollbar-width: none; }
+  html:not(.no-js) .tq { flex: 0 0 84vw; scroll-snap-align: start; }
+  .no-js .testi-rail { display: grid; gap: 48px; padding: 0 var(--m); }
+  .tq p { font-size: 16px; }
 }

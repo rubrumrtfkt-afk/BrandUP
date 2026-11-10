@@ -14,6 +14,19 @@ export const NODES: V2[] = [
 export const EDGES: [number, number][] = [[0, 6], [1, 6], [2, 8], [3, 8], [4, 7], [5, 7], [6, 9], [7, 9], [8, 9]]
 
 export const isPortrait = (vw: number) => vw < 768
+/** v5.0 (owner: "All clear" left in ~0.1 s): the yes holds the finale for YOU_HOLD screens of pinned scroll after its
+ *  first screen (the orders); the section is (2 + YOU_HOLD) screens tall and the yes's p stays in units of the first
+ *  screen. Measured (proto-v50/clear): the DWELL chain makes the clear arrive late when the hand is quick (p ≈ 1.25 at
+ *  .43 screen/s), so the hold must absorb that lag AND the reading. */
+export const YOU_HOLD = 1.15
+/** C5 starts at this p of the yes at the earliest (first-screen units): the v4.4 start (.90) pushed past the hold */
+export const C5_AT = 0.9 + 0.75
+/** the lock's text is fully in at .65 s + .3 s (proto.css .lock > p; v54: it waits for the silk to settle) */
+export const CLEAR_IN_MS = 950
+/** and C5 may not begin before it has been read: 600 ms of time AND .8 screen of scroll after it came in (= 667 ms
+ *  at the 1.2 screen/s cap of smoothScroll), so a quick hand cannot take it away and a slow one is not held */
+export const CLEAR_READ_MS = CLEAR_IN_MS + 600
+export const CLEAR_READ_SCREENS = 0.8
 
 /** Where the network sits in the hero (document px at scroll 0): centre x, base y, px per net unit. */
 export type NetF = { cx: number; baseY: number; unit: number; sx?: number }
@@ -24,9 +37,16 @@ export function netFrame(vw: number, vh: number): NetF {
     const unit = Math.min(vh * 0.25, (vw / 2 - 40) / 1.04)
     return { cx: vw * 0.5, baseY: vh * 0.95, unit }
   }
-  const unit = Math.min(vh * 0.44, vw * 0.27)
-  return { cx: vw * 0.79, baseY: vh * 0.9, unit }
+  // v55 (owner, hero-cortado.png: the right agent sat at cx + unit = 1527 px on a 1440 screen): the network keeps about
+  // the size it had and moves LEFT until its right agent's cloud (1.12 unit) ends a page margin from the edge. The
+  // triangle is narrow at the H1's height, so it clears the text by ≥ 56 px at 1024–1920 (proto-v55, fit2). proto.html
+  // repeats this formula for the intro's landing spot (keep them together).
+  // below ~1280 the text column is a larger share of the screen: (vw − 620) / 2 keeps 1024 × 768 clear (76 px) too
+  const unit = Math.min(vh * 0.42, vw * 0.25, Math.max(150, (vw - 620) * 0.5))
+  return { cx: vw - pageMargin(vw) - 1.12 * unit, baseY: vh * 0.9, unit }
 }
+/** --m of proto.css: clamp(20px, 4.45vw, 64px) */
+export const pageMargin = (vw: number) => Math.min(64, Math.max(20, vw * 0.0445))
 
 export function netToScreen(n: V2, f: NetF): V2 {
   return [f.cx + n[0] * f.unit * (f.sx ?? 1), f.baseY - n[1] * f.unit]
@@ -36,9 +56,14 @@ export function netToScreen(n: V2, f: NetF): V2 {
  *  the base of the stage. Viewport px. */
 export function phoneNetFrame(phone: { x0: number; x1: number; y1: number }, stageBottom: number, vw: number): NetF {
   const portrait = isPortrait(vw)
-  const baseY = stageBottom - (portrait ? 26 : 40)
-  const unit = Math.max(40, (baseY - (phone.y1 + 10)) / 1.55)
-  const half = portrait ? Math.min(165, vw / 2 - 30) : Math.min(vw * 0.4, 620)
+  // brief-v4.5 §9.1: the network gets height (160 px at 1440, 150 at 390, instead of ~60) and room under it for the
+  // names (base 124 px above the stage's foot at 1440, 154 at 390); 720 px wide at 1440 (c3–c10), 350 at 390
+  let baseY = stageBottom - (portrait ? 154 : 124)
+  let unit = Math.max(40, (baseY - (phone.y1 + 16)) / 1.55)
+  // v54 (owner: "so the person sees what is happening"; jury v53: the names sat at the foot of the screen, far from the
+  // card): at 1440 the network is at most 130 px tall, so its base and the names under it come up toward the card
+  if (!portrait && unit > 84) { unit = 84; baseY = phone.y1 + 16 + unit * 1.55 }
+  const half = portrait ? Math.min(175, vw / 2 - 20) : Math.min(vw * 0.25, 360)
   return { cx: (phone.x0 + phone.x1) / 2, baseY, unit, sx: half / unit }
 }
 
@@ -150,5 +175,31 @@ export function buildPoints(cam: GridCam, portrait: boolean, eventTimes: string[
     aGrid.set([col / (cam.cols - 1), row / (cam.rows - 1), flag], k * 3)
     aInfo.set([role, id, r(), r()], k * 4)
   }
-  return { n, aNet, aGrid, aInfo, events }
+  // v54 (jury v53, chromium 1440: the hero came back as 3 loose nodes): the points above are generated role by role
+  // (brains, agents, you, wires), and the engine's quality drop shortens the DRAW RANGE, so a prefix of the buffer
+  // kept whole roles and lost the rest (50 % → brains + agents + you; 25 % → the 3 brains only). The buffer is now
+  // stored in a seeded random order, so any prefix is an even sample of every role; the night's event points go first,
+  // so no drop ever takes an event of the night away. A separate seed keeps the picture itself identical.
+  const r2 = rng(11)
+  const perm = Array.from({ length: n }, (_, i) => i)
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(r2() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]] }
+  perm.sort((a, b) => Number(aGrid[b * 3 + 2] >= 2) - Number(aGrid[a * 3 + 2] >= 2)) // stable: the shuffle stays
+  const oNet = new Float32Array(n * 3), oGrid = new Float32Array(n * 3), oInfo = new Float32Array(n * 4)
+  perm.forEach((k, j) => {
+    oNet.set(aNet.subarray(k * 3, k * 3 + 3), j * 3)
+    oGrid.set(aGrid.subarray(k * 3, k * 3 + 3), j * 3)
+    oInfo.set(aInfo.subarray(k * 4, k * 4 + 4), j * 4)
+  })
+  return { n, aNet: oNet, aGrid: oGrid, aInfo: oInfo, events }
+}
+
+/** brief-v4.3 §7.1: is a point of the office quad (local 0…1) inside the oval the composite draws, with a margin?
+ *  Same superellipse as COMP_FS (exponent 3.2; the edge starts dissolving at .58), so .52 keeps ≥ 10 % inside. */
+/** v5.0 (owner: "only 2 desks light, the rest is murky"): a desk counts as inside the model's oval up to .78 of the
+ *  superellipse (the composite is solid to .58 and grain-fades to .98), not .52: the bookkeeper (1440) and the
+ *  receptionist, bookkeeper and social (390) sit in the render and now light, are framed and get their tag */
+export const OVAL_IN = 0.78
+export function inOval(lu: number, lv: number, k = 0.52) {
+  const ex = Math.abs(lu - 0.5) * 2, ey = Math.abs(lv - 0.5) * 2
+  return Math.pow(Math.pow(ex, 3.2) + Math.pow(ey, 3.2), 1 / 3.2) < k
 }

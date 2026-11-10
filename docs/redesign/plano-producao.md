@@ -116,3 +116,18 @@ O protótipo já tem `title`, `description`, `canonical`, OG/Twitter, JSON-LD e 
 6. Privacidade: onde ficam os dados, quais provedores de IA, prazo de exclusão, Privacy Act e Spam Act.
 7. Aceitar ou não telefone fixo.
 8. Autorizar o push na `main`.
+
+## Atualização (10/11/2026)
+
+O inventário completo do admin e da captura de leads está em `docs/redesign/admin-crm-inventario.md`. Ele cobre o que faltava neste plano:
+
+- a branch `origin/feature/admin-password-recovery` (commit `2bbc61a`), que conflita no `AdminPage.tsx` e tem uma armadilha de `invite`/`recovery` contra `1`;
+- as Redirect URLs e os templates de e-mail do Supabase Auth;
+- o guard do Pixel por caminho (`/admin/`) e por token;
+- o teste 9, que lê o primeiro `<script>` do `index.html`;
+- o comando de teste: `node --test "tests/*.test.mjs"`, e não `tests/`;
+- o `maxLength` do telefone;
+- as variáveis do `index.css` usadas pelo `StaticPage.css`;
+- os textos de "restaurant" que sobram.
+
+Use o checklist do inventário no dia da troca.

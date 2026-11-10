@@ -2,10 +2,12 @@ import { Geometry, Mesh, Program, RenderTarget, Renderer, Texture, Triangle } fr
 import { bus } from '../bus'
 import { night } from '../content'
 import {
-  NODES, OFFICE_DESKS, OFFICE_IMG, buildPoints, coverMap, zoomMap, gridCam, isPortrait, netFrame, netToScreen,
+  NODES, OFFICE_DESKS, OFFICE_IMG, buildPoints, coverMap, inOval, OVAL_IN, zoomMap, gridCam, isPortrait, netFrame, netToScreen,
   phoneNetFrame, projectGrid, type GridCam, type NetF,
 } from '../layout'
 import { ticker } from '../ticker'
+import { bez, ease, transit, writePacket, type Pt } from '../transit'
+import { orlaTargets } from '../orla'
 import { COMP_FS, FIELD_FS, POINT_FS, POINT_VS, QUAD_VS } from './shaders'
 import { OFFICE_LOOP, type LoopSrc } from './officeLoop'
 import nightMasterUrl from '../assets/office-night-1600.webp?url'
@@ -25,7 +27,14 @@ const FIG_DOTS: [number, number][] = [[27 / 36, 13.5 / 36], [11.5 / 36, 8.5 / 36
 // leaves at FLY_A + i × FLY_STEP, each dot takes FLY_LEN; the last lands at s ≈ .84, as the model fades in
 const FLY_A = 0.04, FLY_STEP = 0.05, FLY_DOT = 0.015, FLY_LEN = 0.5
 const flyEnd = (i: number) => FLY_A + i * FLY_STEP + 3 * FLY_DOT + FLY_LEN
-const dawnOff = typeof location !== 'undefined' && new URLSearchParams(location.search).get('dawn') === '0'
+// v4.8 (owner, Safari: "a striped purple band above 'You, asleep' when the moon leaves, it means nothing"): the T3
+// dawn horizon landed on 0.3 vh, inside the night H2's dark box, and left a 96-px fringe slab on the right. v4.9: it
+// is back by default, rising FROM the ground between the night and the office (line only, no fringe): no title ever
+// stands on that line. ?dawn=0 takes it away.
+const params = typeof location === 'undefined' ? new URLSearchParams() : new URLSearchParams(location.search)
+const dawnOff = params.get('dawn') === '0'
+// brief-v4.4 §5.3 "em avaliação" (?pull=0 removes it): 7 light fragments of the model's edge follow the order out
+const pullOn = params.get('pull') !== '0'
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
 const smooth = (a: number, b: number, v: number) => { const t = clamp01((v - a) / (b - a)); return t * t * (3 - 2 * t) }
@@ -43,8 +52,14 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
   const renderer = new Renderer({ canvas, dpr, alpha: true, antialias: false, depth: false, webgl: 2, powerPreference: 'high-performance' })
   const gl = renderer.gl
   if (!gl || !renderer.isWebgl2) return null
+  // v55b (jury v55: with GL in software the intro froze 1.7–5 s on the first visible frame, frames of 337 ms, 30 fps):
+  // a software rasteriser (SwiftShader, llvmpipe, Microsoft Basic Render) cannot run this scene; the caller keeps the
+  // posters, like ≤ 2 GB or Save-Data. ?gl=1 forces the engine (to compare).
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info')
+  const gpu = String(gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? '')
+  if (/swiftshader|llvmpipe|softpipe|software|basic render/i.test(gpu) && new URLSearchParams(location.search).get('gl') !== '1') return null
   gl.clearColor(0, 0, 0, 0)
-  const cell = opts.cell ?? 2
+  let cell = opts.cell ?? 2
 
   let vw = 0, vh = 0, portrait = portrait0, cam: GridCam = gridCam(innerWidth, innerHeight)
   let light: RenderTarget
@@ -59,7 +74,8 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
       uView: { value: [1, 1] }, uTime: { value: 0 }, uNetF: { value: [0, 0, 1] }, uFall: { value: 0 }, uHot: { value: -1 },
       uNodes: { value: NODES.flat() }, uCam: { value: [1, 1, 1, 1] }, uZ: { value: [1, 2] }, uPortrait: { value: 0 },
       uGridOn: { value: 0 }, uGridY: { value: 0 }, uCrest: { value: -1 }, uConv: { value: 0 }, uLead: { value: [0, 0] }, uCell: { value: cell },
-      uNetS: { value: 1 }, uDim: { value: 0 }, uNetI: { value: 1 }, uForm: { value: [0, 0, 1, 1] }, uFormMix: { value: 0 }, uPtr: { value: [-999, -999, 0] },
+      uNetS: { value: 1 }, uDim: { value: 0 }, uNetI: { value: 1 }, uForm: { value: [0, 0, 1, 1] }, uFormMix: { value: 0 }, uPtr: { value: [-999, -999, 0] }, uThin: { value: 1 },
+      uLogo: { value: [0, 0, 1, 1] }, uLogoI: { value: 1 },
     },
   })
   pointProgram.setBlendFunc(gl.ONE, gl.ONE)
@@ -68,10 +84,12 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
     vertex: QUAD_VS, fragment: FIELD_FS, depthTest: false, depthWrite: false,
     uniforms: {
       uBuf: { value: [1, 1] }, uCell: { value: cell }, uTime: { value: 0 }, uHz: { value: [0, 0, 0, 0] }, uBeam: { value: [0, 0, 0, 0, 0] },
-      uBeamTo: { value: [0, 0, 0, 0] }, uRise: { value: [0, 0, 0, 0] }, uTri: { value: [0, 0, 0, 0] }, uTriL: { value: [0, 0, 0, 0] },
-      uFDot: { value: new Array(15).fill(0) }, uAct: { value: new Array(8).fill(0) }, uActP: { value: new Array(8).fill(0) },
-      uActG: { value: 1 }, uTrav: { value: [0, 0, 0] }, uEvB: { value: new Array(20).fill(0) }, uPool: { value: new Array(24).fill(0) },
+      uBeamTo: { value: [0, 0, 0, 0] }, uRise: { value: [0, 0, 0, 0] },
+      uAct: { value: new Array(8).fill(0) }, uActP: { value: new Array(8).fill(0) },
+      uActG: { value: 1 }, uHzX: { value: [1, 0, 0, 0] }, uPkt: { value: new Array(48).fill(0) }, uPktOn: { value: 0 },
+      uFrag: { value: new Array(96).fill(0) }, uFragOn: { value: 0 }, uEvB: { value: new Array(20).fill(0) }, uPool: { value: new Array(24).fill(0) },
       uFly: { value: new Array(96).fill(0) }, uFlyOn: { value: 0 },
+      uArw: { value: new Array(16).fill(0) }, uArwH: { value: 100 },
     },
   })
   const quad = new Triangle(gl)
@@ -85,7 +103,7 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
       tLight: { value: null }, uBuf: { value: [1, 1] }, uCell: { value: cell }, uDpr: { value: dpr }, uViewH: { value: 1 },
       uDark: { value: new Array(64).fill(0) }, uDarkF: { value: new Array(16).fill(1) }, uDarkN: { value: 0 },
       tNight: { value: tNight }, tDay: { value: tDay }, uOffR: { value: [0, 0, 0, 0] }, uOffM: { value: [0, 0, 1, 1] }, uOffOn: { value: 0 },
-      uOffLum: { value: 0.52 }, uDesk: { value: new Array(18).fill(0) }, uDeskK: { value: 1.4 }, uDayP: { value: 0 },
+      uOffLum: { value: 1.0 }, uDesk: { value: new Array(18).fill(0) }, uDeskK: { value: 1.4 }, uDayP: { value: 0 },
     },
   })
   const compMesh = new Mesh(gl, { geometry: quad, program: compProgram })
@@ -232,16 +250,41 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
   let slowSince = -1
   let avgDt = 16.7
   let idleCleared = false
+  let scaled = false
+  const dts: number[] = []
   let started = false
   let heroRiseDone = false
+  let arwP = -1 // v52: the arrow's progress along its arc (the scroll through approach)
+  // v52: the hero's first-gesture rise is MINT (brief-v4.1 §4.10); the owner's rule since v4.5 is "the arrow is white,
+  // never green", and the white arrow of the network now is what rises: the mint rise from the vertex stays in the
+  // code behind ?herorise=1 for the jury to compare
+  const heroRiseOn = new URLSearchParams(location.search).get('herorise') === '1'
   const act = new WeakMap<Element, number>()
   // the pointer, for the form's field of points (owner 09/11 item 4); touch drifts instead of hovering
   const ptr = { x: -999, y: -999, tx: -999, ty: -999, s: 0, at: -1e9 }
-  const onPtr = (e: PointerEvent) => { ptr.tx = e.clientX; ptr.ty = e.clientY; ptr.at = performance.now(); if (ptr.x < -900) { ptr.x = ptr.tx; ptr.y = ptr.ty } ticker.wake() }
+  const onPtr = (e: PointerEvent) => { lastInput = performance.now(); ptr.tx = e.clientX; ptr.ty = e.clientY; ptr.at = performance.now(); if (ptr.x < -900) { ptr.x = ptr.tx; ptr.y = ptr.ty } ticker.wake() }
   addEventListener('pointermove', onPtr, { passive: true })
   const t0 = performance.now()
+  // brief-v4.3 §9.1: the last input that moves the page (the loop sleeps 1.5 s after it). Dev / ?probe expose the
+  // count of frames drawn as window.__frames (the rest probe counts it with the page still).
+  let lastInput = t0
+  const counting = import.meta.env.DEV || new URLSearchParams(location.search).has('probe')
+  const onInput = () => { lastInput = performance.now() }
+  addEventListener('scroll', onInput, { passive: true })
+  addEventListener('resize', onInput)
   const m = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--m')) || 20
   let margin = 20
+
+  // v55 the intro (proto.html): window.__bu exists only while the intro runs; m = the morph's start (performance.now),
+  // null while the logo is still travelling, −1e9 after a skip. The logo's box is read from the DOM, so the grains start
+  // exactly on the drawn logo (no second copy of the landing formula here).
+  // v55b: late = the logo gave up waiting (700 ms after landing) and left; box = where it was. The engine then starts the
+  // morph itself once it has drawn (started) and drops __bu at the end, so the late network grows out of the logo's ghost.
+  type Intro = { m: number | null; d: number; late?: boolean; box?: [number, number, number] }
+  const intro = () => (window as Window & { __bu?: Intro }).__bu
+  const onIntro = () => ticker.wake()
+  addEventListener('bu-morph', onIntro)
+  let introBox: [number, number, number] | null = null
 
   const frame = (now: number, dt: number): boolean => {
     if (gl.isContextLost()) return false
@@ -254,23 +297,91 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
     const youR = rect(q('[data-scene="you"]'))
     const formR = rect(q('[data-scene="form"]'))
     const officeR = rect(q('[data-scene="office"]'))
-    const faqR = rect(q('[data-scene="faq"]'))
     const visible = (r: Rect | null, mg = 0) => !!r && r.y1 > -mg && r.y0 < vh + mg
     let animating = false
+    const animBy: number[] = [] // dev / ?probe: the line that asked for frames (window.__why)
+    const ask = (line: number) => { animating = true; if (counting) animBy.push(line) }
 
     // ---- hero network and its fall (E2)
     const f = netFrame(vw, vh)
     const heroTop = hero ? hero.y0 : -sy
-    const fall = smooth(0, vh * 0.7, -heroTop)
+    // brief-v4.3 §4.2: the network falls with a 0.6 parallax (it lags the page) over a longer run, so it is still there at y 450
+    const fall = smooth(0, vh * 0.95, -heroTop)
     const pu = pointProgram.uniforms
     pu.uTime.value = time
-    pu.uNetF.value = [f.cx, heroTop + f.baseY, f.unit]
+    pu.uNetF.value = [f.cx, heroTop * 0.6 + f.baseY, f.unit]
     pu.uFall.value = fall
     pu.uHot.value = bus.hotAgent
     pu.uNetS.value = 1; pu.uDim.value = 0; pu.uNetI.value = 1
+    pu.uThin.value = drawCount > 0 ? Math.sqrt(Math.round(total * (opts.density ?? 1)) / drawCount) : 1
 
-    // ---- the first yes already in the hero (§4.10): the first scroll gesture sends a rise from the vertex
-    if (!heroRiseDone && fall > 0.08 && opts.freezeAt === undefined) { heroRiseDone = true; bus.rise = { at: now, src: 'hero' } }
+    // ---- v52 (owner, after v4.5: the network back exactly as it was; the one new thing is the logo's WHITE arrow inside
+    // it, made of the same light): the arrow lives in the triangle of the wires (net units: centre y .47, height .56) and
+    // leaves along an arc with the scroll (brief-v4.5 §5.2: scrub, p = scrollY / (0.6 vh), approach .12; the antecipation
+    // to p .08, the tilt ≤ 28° to the right, 3 ghosts that fall to lilac/purple by intensity). Drawn by FIELD_FS in the
+    // light buffer, so the composite dithers it like every light (white points, never a flat polygon, never mint).
+    {
+      const target = clamp01(sy / (0.6 * vh))
+      arwP = arwP < 0 ? target : approach(arwP, target, 0.12, dt)
+      if (Math.abs(arwP - target) < 0.0008) arwP = target
+      else ask(420)
+      const ang = fall * 1.35, yU = 0.47, persp = 1 / (1 + yU * Math.sin(ang) * 0.55)
+      const hx = f.cx, hy = heroTop * 0.6 + f.baseY - yU * Math.cos(ang) * f.unit * persp
+      const hy0 = f.baseY - yU * f.unit // the home at scroll 0: the arc's fixed points are measured from it
+      const h = 0.56 * f.unit
+      const at = (q: number): [number, number, number] => {
+        const lift = -0.06 * h * Math.min(1, Math.max(0, q) / 0.08)
+        if (q <= 0.08) return [hx, hy + lift, 0]
+        const t = (q - 0.08) / 0.92, e = t * t * (3 - 2 * t), u = 1 - e
+        const p1x = hx + 0.04 * vw, p1y = hy0 - 0.55 * vh
+        const p2x = portrait ? vw - 30 : Math.min(hx + 0.18 * vw, vw - 48), p2y = -0.25 * vh
+        const x = u * u * hx + 2 * u * e * p1x + e * e * p2x, y = u * u * (hy + lift) + 2 * u * e * p1y + e * e * p2y
+        const dx = 2 * u * (p1x - hx) + 2 * e * (p2x - p1x), dy = 2 * u * (p1y - hy) + 2 * e * (p2y - p1y)
+        return [x, y, Math.max(0, Math.min(0.4887, Math.atan2(dx, -dy)))]
+      }
+      const arw: number[] = []
+      const heroVisible = !!hero && hero.y1 > 0
+      ;[[0, 1], [0.035, 0.6], [0.07, 0.35], [0.105, 0.15]].forEach(([d, k], i) => {
+        const q = arwP - d
+        const on = heroVisible && (i === 0 || (q > 0.08 && arwP < 0.98)) ? k : 0
+        const [x, y, tl] = at(q)
+        arw.push(x, y, tl, on)
+      })
+      fieldProgram.uniforms.uArw.value = arw
+      fieldProgram.uniforms.uArwH.value = h
+      // v55 the intro's morph: the grains leave the logo's triangle (POINT_VS uLogo) and its white arrow grows from the
+      // logo's arrow (favicon y 13–30 of 40, centre 1.5 units under the logo's centre) into this one, in place
+      const bu = intro()
+      let morph = 1
+      if (bu) {
+        if (bu.late && bu.m === null && started) { bu.m = now; document.documentElement.classList.add('intro-ghost-out') }
+        morph = bu.m === null ? 0 : clamp01((now - bu.m) / bu.d)
+        const el = morph < 1 ? q('.intro-logo') : null
+        if (el) { const r = el.getBoundingClientRect(); if (r.width > 0) introBox = [(r.left + r.right) / 2, (r.top + r.bottom) / 2, r.width] }
+        else if (bu.box) introBox = bu.box
+        if (morph < 1) ask(345)
+        else if (bu.late) {
+          (window as Window & { __bu?: Intro }).__bu = undefined
+          q('.intro-logo')?.remove()
+          document.documentElement.classList.remove('intro-late', 'intro-ghost-out')
+        }
+      }
+      const pl = pointProgram.uniforms
+      if (morph < 1 && introBox) {
+        const [lx, ly, ls] = introBox
+        pl.uLogo.value = [lx, ly, ls, morph]
+        // the triangle's area in light texels over the light the drawn points pile on it: ≈ the brand purple
+        const area = (ls * 0.75 * ls * 0.7) / 2 / (cell * cell)
+        pl.uLogoI.value = Math.min(1, (0.55 * area) / Math.max(1, drawCount * 0.77))
+        const e = 1 - Math.pow(1 - smooth(0.08, 0.86, morph), 3)
+        arw[0] = mix(lx, arw[0], e); arw[1] = mix(ly + (1.5 * ls) / 40, arw[1], e)
+        fieldProgram.uniforms.uArwH.value = mix((17 * ls) / 40, h, e)
+      } else pl.uLogo.value = [0, 0, 1, 1]
+    }
+
+
+    // ---- the first yes already in the hero (§4.10): the first scroll gesture sends a rise from the vertex (v52: ?herorise=1)
+    if (heroRiseOn && !heroRiseDone && fall > 0.08 && opts.freezeAt === undefined) { heroRiseDone = true; bus.rise = { at: now, src: 'hero' } }
 
     // ---- the grid: waits under the form (dark), lights with the night, stays as the office floor
     let gridY = 0, crest = -1, conv = 0, target = 0
@@ -289,6 +400,8 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
       target = smooth(vh * 0.95, vh * 0.35, nightR.y0) * (nightR.y1 > 0 ? 1 : 0)
     } else target = 0
     // after the fall the points settle behind the form as its ground, until the night takes them
+    // after the fall the points settle behind the form as its ground, until the night takes them (v52: back, the owner
+    // found the v4.5 form "static, stuck": the field of points that reacts to the pointer returns)
     const formMix = nightR ? smooth(vh * 0.3, vh * 0.95, nightR.y0) : 1
     pu.uFormMix.value = officeFloor ? 0 : formMix
     pu.uForm.value = formR ? [formR.x0, formR.y0, formR.x1 - formR.x0, formR.y1 - formR.y0] : [0, 0, 1, 1]
@@ -367,6 +480,10 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
 
     // ---- titles and labels stay in the dark (rule 3): box + f px (data-dark="16" for small text)
     for (const el of document.querySelectorAll<HTMLElement>('[data-dark]')) {
+      // v4.8: a faded or hidden element keeps its box (the scroll hint at opacity 0, the "you" title after it
+      // leaves): its dark box would cut an empty hole in the light. checkVisibility: Safari 17.4+ / Chrome 121+;
+      // without it the box stays (the old behaviour).
+      if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue
       const r = rect(el)
       const fd = Number(el.dataset.dark) || 48
       if (r && r.y1 > -96 && r.y0 < vh + 96 && r.x1 > r.x0) darks.push({ r: { x0: r.x0 - fd, y0: r.y0 - fd, x1: r.x1 + fd, y1: r.y1 + fd }, f: fd })
@@ -394,9 +511,28 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
       for (let i = 0; i < 5; i++) {
         const tgt = state[i] ? maxH : 0
         beams[i] = approach(beams[i], tgt, toLogo ? 0.06 : 0.12, dt)
-        if (Math.abs(beams[i] - tgt) > 0.5) animating = true
+        if (Math.abs(beams[i] - tgt) > 0.5) ask(420)
       }
-      fu.uHz.value = [r.left, r.right, r.top + r.height / 2, 1]
+      // brief-v4.4 §8.1 ground-hz: the line draws from its centre to its ends with the scroll (ign .0–.5); its fringe is
+      // gone (the orla takes its place, §9.5). T2: while nightShift carries the form's line down to the night, it hands
+      // over to the grid BEFORE it reaches the night title's dark box (v4.9: it landed at 0.3 vh behind the H2's second
+      // line and left a slab on the right, after/webkit-1440-night-07)
+      const ign = clamp01((vh * 0.98 - r.top) / (vh * 0.36))
+      bus.ign[hz.dataset.horizon === 'final' ? 'final-hz' : 'form-hz'] = ign
+      let hw = 1
+      // …and before the night's desks come up under it (their dark boxes cut it into dashes, v4.9 webkit-1440-night-03):
+      // gone by the time the night's top reaches 0.6 vh, i.e. while only the grid is there to take over
+      if (hz.style.transform) {
+        const nh = rect(q('#night-h'))
+        // v54 (proof of the beams, 1440 and 390: with the night's title still BELOW the line, r.top < limit put hw at 0, so
+        // the form's line and its beams were never drawn while the night was near, i.e. whenever the form was read): the
+        // title coming up from below takes the line away only as it gets close; once above, the old hand-over rule
+        if (nh && nh.y0 > r.top) hw = smooth(24, 144, nh.y0 - r.top)
+        else if (nh) { const limit = nh.y1 + 56; hw = smooth(limit, limit + 120, r.top) }
+        if (nightR) hw = Math.min(hw, smooth(vh * 0.6, vh * 0.95, nightR.y0))
+      }
+      fu.uHz.value = [r.left, r.right, r.top + r.height / 2, hw]
+      fu.uHzX.value = [Math.min(1, ign / 0.5), 0, 0, 0]
       fu.uBeam.value = beams.slice()
       if (toLogo && logoBox) fu.uBeamTo.value = [0, (logoBox.x0 + logoBox.x1) / 2, (logoBox.x1 - logoBox.x0) / 2, 1]
     } else fu.uHz.value = [0, 0, 0, 0]
@@ -405,35 +541,47 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
     const phone = rect(q('[data-phone]'))
     const stage = rect(q('[data-you-stage]'))
     const youOn = visible(youR) && !!phone && !!stage
-    phoneLit = approach(phoneLit, youOn ? 0.35 + 0.65 * bus.phone.lit : 0, 0.08, dt)
+    // the phone's network leaves with the phone (brief-v4.3 §4.4: it hands over to the FAQ, no triangle over the questions)
+    const youGone = youR ? clamp01((vh - youR.y1) / (vh * 0.35)) : 1
+    phoneLit = approach(phoneLit, youOn ? (0.35 + 0.65 * bus.phone.lit) * (1 - youGone) : 0, youGone > 0 ? 0.3 : 0.08, dt)
     let phoneF: NetF | null = null
+    let travelAt: ((e: number) => Pt) | null = null, travelT = 0
     if (youOn && phone && stage) {
       phoneF = phoneNetFrame(phone, Math.min(stage.y1, vh), vw)
       const tr = bus.sim.travel
       if (tr >= 0 && bus.sim.agent >= 0) {
         const brain = [6, 6, 8, 8, 7, 7][bus.sim.agent]
         const A = netToScreen(NODES[bus.sim.agent], phoneF), B = netToScreen(NODES[brain], phoneF), C = netToScreen(NODES[9], phoneF)
-        const t = clamp01(tr)
-        const [x, y] = t < 0.5 ? [mix(A[0], B[0], t * 2), mix(A[1], B[1], t * 2)] : [mix(B[0], C[0], t * 2 - 1), mix(B[1], C[1], t * 2 - 1)]
-        fu.uTrav.value = [x, y, 1]
-      } else fu.uTrav.value = [0, 0, 0]
-      // the hot agent's name on its node (DOM)
-      const tag = q<HTMLElement>('[data-net-tag]')
-      if (tag && bus.sim.agent >= 0) {
-        const [ax, ay] = netToScreen(NODES[bus.sim.agent], phoneF)
-        tag.style.transform = `translate3d(${(ax - (stage.x0)).toFixed(1)}px, ${(ay - stage.y0 - 34).toFixed(1)}px, 0) translateX(-50%)`
+        // brief-v4.4 §3.1: the dot that runs down the wire after a yes is a packet now (phone vertex → brain → agent)
+        travelAt = (e) => (e < 0.5 ? [mix(C[0], B[0], e * 2), mix(C[1], B[1], e * 2)] : [mix(B[0], A[0], e * 2 - 1), mix(B[1], A[1], e * 2 - 1)])
+        travelT = 1 - clamp01(tr)
       }
-    } else fu.uTrav.value = [0, 0, 0]
+      // brief-v4.5 §9.2: the six names under their nodes (1440); at 390 only the one whose turn it is, centred under the base
+      const names = q<HTMLElement>('[data-net-names]')
+      if (names) {
+        const kids = names.children
+        for (let i = 0; i < kids.length && i < 6; i++) {
+          const [ax, ay] = netToScreen(NODES[i], phoneF)
+          const x = portrait ? phoneF.cx : ax
+          const kid = kids[i] as HTMLElement
+          kid.style.transform = `translate3d(${(x - stage.x0).toFixed(1)}px, ${(ay - stage.y0 + 14).toFixed(1)}px, 0) translateX(-50%)`
+          // v54 (jury v53, 390 s07: "Your follow-up / Asking you" ran across the card's text while the stage came in,
+          // because the network's base follows min(stage foot, screen foot)): a name whose top is not below the phone hides
+          const clash = String(ay + 14 < phone.y1 + 8)
+          if (kid.dataset.clash !== clash) kid.dataset.clash = clash
+        }
+      }
+    }
 
     // ---- the rise (one at a time): from the phone after a yes, from the hero vertex on the first scroll
     const riseT = bus.rise.at < 0 ? -1 : (now - bus.rise.at) / 850
     if (riseT >= 0 && riseT <= 1) {
-      animating = true
+      ask(472)
       let rx = 0, ry = 0
       if (bus.rise.src === 'phone' && phone) { rx = (phone.x0 + phone.x1) / 2; ry = phone.y0 }
       else {
         const ang = fall * 1.35, persp = 1 / (1 + 1.55 * Math.sin(ang) * 0.55)
-        rx = f.cx; ry = heroTop + f.baseY - 1.55 * Math.cos(ang) * f.unit * persp
+        rx = f.cx; ry = heroTop * 0.6 + f.baseY - 1.55 * Math.cos(ang) * f.unit * persp
       }
       fu.uRise.value = [rx, ry, 1 - Math.pow(1 - riseT, 2), 1]
     } else fu.uRise.value = [0, 0, 0, 0]
@@ -443,13 +591,13 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
     const landK = OFFICE_DESKS.map((_, k) => { const i = DESK_OF_FIG.indexOf(k); return smooth(flyEnd(i) - 0.04, flyEnd(i) + 0.08, seam) })
     // the horizon at the back of the night's grid lights again, hot → core (the sunset of T2 coming back), and
     // leaves with the night; only while no DOM horizon is on screen (?dawn=0: off, the owner judges by seeing)
-    if (!hz && nightR && !dawnOff) {
+    if (!hz && nightR && officeR && !dawnOff) {
       const np = clamp01(-nightR.y0 / Math.max(1, nightR.y1 - nightR.y0 - vh))
       const dawn = smooth(0.8, 0.97, np) * (1 - smooth(0.2, 0.62, seam))
       if (dawn > 0.002) {
-        const hy = cam.horizon + Math.min(0, nightR.y1 - vh) // T2 landed the form's horizon on this same line (0.3 vh)
-        fu.uHz.value = [-200, vw + 200, hy, Math.min(1, dawn * 12) * (0.55 + 0.45 * dawn)]
-        animating = true
+        // v4.9: the office's top edge = the night's floor; it opens from the centre (never on in one frame)
+        fu.uHz.value = [-200, vw + 200, officeR.y0 - 1, Math.min(1, dawn * 3)]
+        fu.uHzX.value = [Math.min(1, dawn * 2), 0, 0, 0]
         fu.uBeam.value = [0, 0, 0, 0, 0]
       }
     }
@@ -476,18 +624,22 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
       // centres on their bounding box and zooms only as far as keeps every one of them inside the window (a margin
       // of .2 uv), so one desk = the close-up, three desks = three figures moving side by side
       const base = coverMap(R.x1 - R.x0, R.y1 - R.y0, img.w, img.h)
-      const litUV = OFFICE_DESKS.filter((_, k) => office.litAt[k] >= 0).map((d) => { const [x, y] = portrait ? d.portrait : d.master; return [x / img.w, y / img.h] })
+      // brief-v4.3 §7.1: the camera frames only the lit desks the picture can show inside its oval (≥ 10 % margin at
+      // the cover framing): Ad manager, Social and Analyst sit on or past the render's right edge, and chasing them
+      // dragged the window to the edge where the oval dissolves
+      const inPic = (d: (typeof OFFICE_DESKS)[number]) => { const [x, y] = portrait ? d.portrait : d.master; return inOval((x / img.w - base.ou) / base.su, (y / img.h - base.ov) / base.sv, OVAL_IN) }
+      const litUV = OFFICE_DESKS.filter((d, k) => office.litAt[k] >= 0 && inPic(d)).map((d) => { const [x, y] = portrait ? d.portrait : d.master; return [x / img.w, y / img.h] })
       let fu0 = 0.5, fv0 = 0.5, zFit = zMax
       if (litUV.length) {
         const us = litUV.map((c) => c[0]), vs = litUV.map((c) => c[1])
         const u0 = Math.min(...us), u1 = Math.max(...us), v0 = Math.min(...vs), v1 = Math.max(...vs)
         fu0 = (u0 + u1) / 2; fv0 = (v0 + v1) / 2
-        zFit = Math.max(1, Math.min(zMax, base.su / (u1 - u0 + 0.2), base.sv / (v1 - v0 + 0.2)))
+        zFit = Math.max(1, Math.min(zMax, base.su / (u1 - u0 + 0.35), base.sv / (v1 - v0 + 0.35))) // v5.0: margin .35 keeps the framed desks out of the grain edge
       }
       const zT = 1 + (zFit - 1) * inward
       cam3.u = approach(cam3.u, fu0, 0.05, dt); cam3.v = approach(cam3.v, fv0, 0.05, dt)
       cam3.z = approach(cam3.z, zT, 0.06, dt)
-      if (Math.abs(cam3.z - zT) > 0.002 || Math.abs(cam3.u - fu0) > 0.001 || Math.abs(cam3.v - fv0) > 0.001) animating = true
+      if (Math.abs(cam3.z - zT) > 0.002 || Math.abs(cam3.u - fu0) > 0.001 || Math.abs(cam3.v - fv0) > 0.001) ask(535)
       const cm = zoomMap(base, cam3.z, cam3.u, cam3.v)
       office.cm = cm
       cu.uOffR.value = [R.x0, R.y0, R.x1, R.y1]
@@ -501,15 +653,25 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
       OFFICE_DESKS.forEach((d, k) => {
         const at = office.litAt[k]
         const rv = at < 0 ? 0 : easeOut((now - at) / 500)
-        if (at >= 0 && now - at < 520) animating = true
+        if (at >= 0 && now - at < 520) ask(549)
         const [ix, iy] = portrait ? d.portrait : d.master
         const u = ix / img.w, v = iy / img.h
         // T3: the desk where a figure's dots landed already glows (an ember, 42 % of the reveal) until its day
         desk.splice(k * 3, 3, u, v, Math.max(rv, 0.42 * landK[k]) * radius)
-        const sx = R.x0 + ((u - cm.ou) / cm.su) * (R.x1 - R.x0), syy = R.y0 + ((v - cm.ov) / cm.sv) * (R.y1 - R.y0)
-        // v4.6: a desk outside the camera window has no pool (it floated as a purple blob over the empty ground)
-        if (rv > 0 && sx > R.x0 && sx < R.x1 && syy > R.y0 && syy < R.y1) {
-          pools.splice(k * 4, 4, sx, syy, (portrait ? 70 : 150) * rv, 1 - office.day * 0.6)
+        const lu = (u - cm.ou) / cm.su, lv = (v - cm.ov) / cm.sv
+        const sx = R.x0 + lu * (R.x1 - R.x0), syy = R.y0 + lv * (R.y1 - R.y0)
+        // brief-v4.3 §7.1 (verified 09/11): the orphan halos were THESE pools, not the uDesk reveal. The composite
+        // already draws the model (and the reveal) only inside the oval (edge × uOffOn > Bayer), but the pool lives
+        // in the light buffer and was cut by the camera RECTANGLE, whose corners are outside the oval. Now a desk
+        // outside the oval has no pool and no reveal (radius 0) at all.
+        const inside = inOval(lu, lv, OVAL_IN)
+        if (!inside) desk[k * 3 + 2] = 0
+        if (rv > 0 && inside) {
+          // v5.0: the desks now light up to OVAL_IN; near the oval's edge the pool shrinks (to 35 %) so its light
+          // never spills onto the bare ground outside the model (the orphan halo of brief-v4.3 §7.1)
+          const se = Math.pow(Math.pow(Math.abs(lu - 0.5) * 2, 3.2) + Math.pow(Math.abs(lv - 0.5) * 2, 3.2), 1 / 3.2)
+          const near = 1 - 0.65 * smooth(0.45, OVAL_IN, se)
+          pools.splice(k * 4, 4, sx, syy, (portrait ? 70 : 150) * rv * near, 1 - office.day * 0.6)
         }
       })
       cu.uDesk.value = desk
@@ -543,57 +705,94 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
           fly.splice((i * 4 + j) * 4, 4, x, y, 8 + 16 * Math.sin(Math.PI * e), 1.15 * (1 - smooth(0.86, 1, seam)))
         })
       })
-      animating = true
     }
     fu.uFly.value = fly
     const flyOn = fly.some((v, i) => (i & 3) === 3 && v > 0)
     fu.uFlyOn.value = flyOn ? 1 : 0
-    // T4 (brief-v4.2 §5.3): in the day phase the follow-up desk lets go of one dot (the order), which rises and leaves
-    // through the top of the screen; the you stage brings it back in from below along the follow-up wire (uTrav there)
-    // one light only: while it leaves, it takes the slot; the you stage's dot (parked on the follow-up node at the
-    // screen's foot while that stage comes up) shows once this one is gone through the top
-    if (officeR && oq && office.day > 0.5) {
-      const dep = clamp01((vh * 1.25 - officeR.y1) / (vh * 0.75))
-      if (dep > 0 && dep < 1) {
-        const [dx, dy] = deskAt(1, oq)
-        fu.uTrav.value = [dx + Math.sin(dep * 7) * 5, mix(dy - 6, -40, dep * dep), 1]
+    // ---- brief-v4.4 §3: the packets (uPkt, channel G) and the fragments in flight (uFrag), one path for all. The T4 of
+    // v4.2 (a dot that left through the top while another came back from below) is gone: the order is ONE packet,
+    // always on screen (§5).
+    const pkt = new Array(48).fill(0), frag = new Array(96).fill(0)
+    const pr = portrait ? 5 : 7
+    const inView = (p: Pt): Pt => [Math.min(vw - 8, Math.max(8, p[0])), Math.min(vh - 8, Math.max(8, p[1]))]
+    let slot = 0
+    if (travelAt) writePacket(pkt, slot++, travelAt, travelT, pr, 1)
+    const screenEl = q<HTMLElement>('[data-phone] .screen')
+    const s4 = bus.c4
+    if (s4 > 0 && s4 < 1 && oq && screenEl) {
+      // C4 (§5.3): P0 the follow-up desk (rides up with the model), P1 fixed on the screen, P2 the top of the phone's
+      // screen (rides up with the yes): the packet hangs in the dark and runs down; it is absorbed as the screen lights
+      const sc = screenEl.getBoundingClientRect()
+      const [dx, dy] = deskAt(1, oq)
+      const P0: Pt = [dx, dy - 6], P1: Pt = portrait ? [vw * 0.72, vh * 0.5] : [vw * 0.62, vh * 0.52], P2: Pt = [(sc.left + sc.right) / 2, sc.top + 2]
+      const at = (e: number) => inView(bez(P0, P1, P2, e))
+      writePacket(pkt, slot++, at, (s4 - 0.1) / 0.7, pr, smooth(0, 0.03, s4) * (1 - smooth(0.8, 0.92, s4)))
+      if (pullOn && s4 > 0.1 && s4 < 0.4) {
+        const pc = at(ease(0.1 / 0.7)) // where it crosses the model's edge
+        for (let i = 0; i < 7; i++) {
+          const born = 0.12 + i * 0.012
+          if (s4 < born) continue
+          const k = clamp01((s4 - born) / 0.08) // they follow the packet for .08 of s…
+          const head = at(ease((Math.min(s4, born + 0.08) - 0.1) / 0.7 - 0.025 * (i + 1)))
+          const fall = Math.max(0, s4 - born - 0.08) // …then fall, going out in 3 levels
+          const jx = Math.sin(i * 2.4) * 10, jy = Math.cos(i * 1.7) * 6
+          const steps = Math.min(3, Math.floor(fall / 0.035))
+          frag.splice(i * 4, 4, mix(pc[0] + jx, head[0] + jx * 0.6, k), mix(pc[1] + jy, head[1] + jy, k) + fall * vh * 2.2, 3, steps >= 3 ? 0 : 0.9 * (1 - steps / 3))
+        }
       }
     }
-
-    // ---- FAQ field → the final logo (§4.8 / §4.7): the triangle of dots, the dots that rise to its apex
-    const fq = bus.faq
-    const fdots = new Array(15).fill(0)
-    fu.uTri.value = [0, 0, 0, 0]; fu.uTriL.value = [0, 0, 0, 0]
-    const list = rect(q('.faq-list'))
-    const faqOn = !!faqR && faqR.y0 < vh * 0.9 && (faqR.y1 > 0 || !!logoBox && logoBox.y1 > 0)
-    if (faqOn && faqR) {
-      const appear = smooth(vh * 0.9, vh * 0.4, faqR.y0)
-      const morph = logoBox ? smooth(vh * 1.15, vh * 0.5, logoBox.y0) : 0
-      const lit = fq.answered / 5
-      let F = portrait
-        ? { cx: margin + 4, apex: Math.max(faqR.y0 + 90, vh * 0.1), h: Math.min(faqR.y1, vh * 0.92) - Math.max(faqR.y0 + 90, vh * 0.1) }
-        : { cx: list ? (list.x0 + list.x1) / 2 : vw * 0.66, apex: vh * 0.1, h: vh * 0.76 }
-      let column = portrait && morph < 0.02
-      if (portrait && !column) F = { cx: margin + 44, apex: vh * 0.08, h: 80 }
-      if (logoBox && morph > 0) {
-        const L = { cx: (logoBox.x0 + logoBox.x1) / 2, apex: logoBox.y0, h: logoBox.y1 - logoBox.y0 }
-        F = { cx: mix(F.cx, L.cx, morph), apex: mix(F.apex, L.apex, morph), h: mix(F.h, L.h, morph) }
-        column = false
+    // brief-v4.6 §4.1 / §4.6: the testimonials. The voice comes down from the FAQ's orla (the mean of its mint fragments
+    // 11 and 12) to the 1st node, P1 on the wire's line (it falls and turns into the wire); at 390 the rail's gesture
+    const tb = bus.testi
+    if (tb.n1 && tb.b > tb.a) {
+      const te = (sy - tb.a) / (tb.b - tb.a)
+      const o = te > 0 && te < 1 ? orlaTargets('faq') : null
+      if (o) {
+        const P0: Pt = [(o[11][0] + o[12][0]) / 2, (o[11][1] + o[12][1]) / 2], P2: Pt = [tb.n1[0], tb.n1[1] - sy]
+        const P1: Pt = [P2[0], (P0[1] + P2[1]) / 2] // the last stretch runs down the wire's line: it enters the wire
+        writePacket(pkt, slot++, (e) => bez(P0, P1, P2, e), te, pr, 1)
       }
-      const arrow = clamp01((morph - 0.9) / 0.1)
-      fu.uTri.value = [F.cx, F.apex, Math.max(F.h, 1), Math.max(appear, morph) * (faqR.y1 > 0 || morph > 0 ? 1 : 0)]
-      fu.uTriL.value = [mix(lit, 1, morph), arrow, 0, column ? 1 : 0]
-      fq.riseAt.forEach((at, k) => {
-        if (at < 0) return
-        const t = (now - at) / 700
-        if (t < 0 || t > 1) return
-        animating = true
-        const e = easeOut(t)
-        fdots.splice(k * 3, 3, F.cx, mix(fq.anchorY[k], F.apex + 4, e), 1)
-      })
-      document.documentElement.dataset.logo = arrow >= 1 ? 'lit' : 'off'
     }
-    fu.uFDot.value = fdots
+    if (tb.rail) {
+      const { a, b, t } = tb.rail
+      writePacket(pkt, slot++, (e) => [a[0] + (b[0] - a[0]) * e, a[1] - sy + (b[1] - a[1]) * e], t, pr, 1)
+    }
+    slot = transit.write(pkt, now, slot) // the night: desks → the bed (timed, §4.3); the testimonials' node → node
+    const c5 = bus.c5
+    if (c5 > 0 && c5 < 1 && screenEl) {
+      // C5 (§6.2): the phone comes apart where it stands; 24 fragments of its screen fan out downward to the FAQ's orla
+      const targets = orlaTargets('faq')
+      if (targets) {
+        const sc = screenEl.getBoundingClientRect()
+        const pcx = (sc.left + sc.right) / 2
+        const release = smooth(0, 0.35, c5)
+        for (let i = 0; i < 24; i++) {
+          // a 4 × 6 grid over the screen, each point shaken inside its cell (a dot matrix would read as a pattern)
+          const P0: Pt = [sc.left + ((i % 4) + 0.5 + Math.sin(i * 12.9898) * 0.3) * sc.width / 4, sc.top + (Math.floor(i / 4) + 0.5 + Math.cos(i * 78.233) * 0.3) * sc.height / 6]
+          const P2: Pt = [targets[i][0], Math.min(targets[i][1], vh - 14)] // v5.0: never lands under the fold
+          const P1: Pt = [(P0[0] + P2[0]) / 2 + (Math.sign(P0[0] - pcx) || 1) * vh * 0.1, (P0[1] + P2[1]) / 2]
+          const t = (c5 - (0.2 + 0.2 * (i / 23))) / 0.35
+          const [x, y] = bez(P0, P1, P2, ease(t))
+          const energy = i === 11 || i === 12 // the last dose of the yes: the two that rhyme with the mountain's foot
+          const w = t >= 1 ? 0 : (energy ? -1 : (i * 7) % 3 === 0 ? 1.05 : 0.75) * release
+          frag.splice(i * 4, 4, x, y, portrait ? 3 : 4, w)
+        }
+      }
+    }
+    const pktOn = pkt.some((v, i) => (i & 3) === 3 && v > 0)
+    const fragOn = frag.some((v, i) => (i & 3) === 3 && v !== 0)
+    fu.uPkt.value = pkt; fu.uPktOn.value = pktOn ? 1 : 0
+    fu.uFrag.value = frag; fu.uFragOn.value = fragOn ? 1 : 0
+    if (transit.busy()) ask(659)
+    if (counting) {
+      const wx = window as Window & { __pkts?: number; __c4?: number[] | null }
+      wx.__pkts = [0, 1, 2].filter((k) => pkt[k * 16 + 3] > 0).length
+      // the C4 head (slot 0 or 1, after a travel): the probe proves it is on screen in every frame of the seam
+      // v5.0: the C5 fragments still alive (x, y, w) so the probe proves they land inside the screen
+      ;(wx as Window & { __frag?: number[][] }).__frag = c5 > 0 && c5 < 1 ? Array.from({ length: 24 }, (_, i) => frag.slice(i * 4, i * 4 + 4)).filter((f) => f[3] !== 0).map((f) => [Math.round(f[0]), Math.round(f[1])]) : []
+      ;(wx as Window & { __busc5?: number }).__busc5 = c5
+      wx.__c4 = s4 > 0 && s4 < 1 ? pkt.slice((travelAt ? 1 : 0) * 16, (travelAt ? 1 : 0) * 16 + 4).map((v) => Math.round(v)) : null
+    }
 
     // ---- ?btn=field: the light gathers around the action and answers it (owner, 09/11)
     const actR = new Array(8).fill(0), actP = new Array(8).fill(0)
@@ -604,33 +803,56 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
         if (k >= 2) break
         const r = rect(el)
         if (!r || !visible(r, -20) || r.x1 - r.x0 < 4) continue
+        // v4.9: a hidden action (the phone of the yes after it comes apart) keeps its box: no light around nothing
+        if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue
         const hot = el.matches(':hover, :focus-visible')
         const ready = el.dataset.actReady === 'true'
         const fill = el.dataset.act === 'approve' ? bus.sim.fill : 0
         const tgt = hot ? 1 : ready ? 0.85 : el.dataset.act === 'approve' ? 0.25 + 0.75 * fill : 0.55
         const cur = approach(act.get(el) ?? 0, tgt, 0.05, dt)
         act.set(el, cur)
-        if (Math.abs(cur - tgt) > 0.01) animating = true
-        const reach = el.dataset.act === 'approve' ? 70 - 34 * fill : 40 + 34 * cur
+        if (Math.abs(cur - tgt) > 0.01) ask(684)
+        const reach = portrait ? 4 : el.dataset.act === 'approve' ? 70 - 34 * fill : 40 + 34 * cur
         actR.splice(k * 4, 4, r.x0, r.y0, r.x1, r.y1)
         actP.splice(k * 4, 4, reach, cur, hot ? 1.8 : ready ? 1.3 : 0.6, 1)
         k++
       }
-      if (k > 0) animating = true
     }
     fu.uAct.value = actR; fu.uActP.value = actP
 
     // ---- run only while a light scene is on screen
     const heroOn = !!hero && hero.y1 > 0 && fall < 1
     const gridVisible = gridOn > 0.01
-    const triOn = (fu.uTri.value as number[])[3] > 0
-    const active = flyOn || heroOn || formField || gridVisible || !!hz || (youOn && phoneLit > 0.01) || triOn || animating || (cu.uOffOn.value as number) > 0
+    const active = flyOn || pktOn || fragOn || heroOn || formField || gridVisible || !!hz || (youOn && phoneLit > 0.01) || animating || (cu.uOffOn.value as number) > 0
     if (!active) {
       if (!idleCleared) { renderer.bindFramebuffer(); gl.clear(gl.COLOR_BUFFER_BIT); idleCleared = true }
+      // nothing of the engine on screen (the hero is DOM since v4.5): a clear canvas is already the right picture
+      if (!started) { started = true; document.documentElement.classList.add('gl-on') }
       return false
     }
     idleCleared = false
 
+    // v51 (reload probe, webkit 390: one EMPTY frame at ~1.2 s = the 60th drawn frame): the scale step resizes the
+    // canvas, and a resize clears it; done after the draw, the browser composited a blank canvas. It runs BEFORE the draw now.
+    // brief-v4.3 §9.2: p95 of the frame time over 60 consecutive drawn frames > 24 ms → the render scale drops one
+    // step (× .75), once, never back (a weak GPU, SwiftShader). Frames after a pause (dt ≥ 100) do not count.
+    if (!scaled && dt < 99) {
+      dts.push(dt)
+      if (dts.length >= 60) {
+        const sorted = dts.slice().sort((a, b) => a - b)
+        if (sorted[Math.floor(sorted.length * 0.95)] > 24) {
+          scaled = true
+          renderer.dpr = dpr * 0.75
+          compProgram.uniforms.uDpr.value = renderer.dpr
+          // the same step coarsens the light buffer (2 → 3 px cells): measured in SwiftShader at 1440, the light pass
+          // is the cost (cell 4 doubled the hero's fps; the canvas scale alone did not move it)
+          if (opts.cell === undefined) { cell = 3; pointProgram.uniforms.uCell.value = cell; fieldProgram.uniforms.uCell.value = cell; compProgram.uniforms.uCell.value = cell }
+          resize()
+          document.documentElement.dataset.glScale = '0.75'
+        }
+        dts.length = 0
+      }
+    }
     renderer.render({ scene: fieldMesh, target: light, clear: true })
     renderer.render({ scene: points, target: light, clear: false })
     if (phoneF && phoneLit > 0.01) {
@@ -644,22 +866,33 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
     renderer.render({ scene: compMesh, clear: true })
     frameNo++
 
-    // automatic quality drop: average frame > 20 ms for 1 s → half the points
+    // automatic quality drop: average frame > 20 ms for 1 s → 60 % of the points, ONCE (v54: it used to halve twice, to
+    // 25 %). The buffer is in random order (layout.ts buildPoints), so the drop thins every wire and node evenly; the
+    // light of each point is raised by √(total / drawn) so the network keeps its weight (uThin)
     avgDt = avgDt * 0.95 + dt * 0.05
-    if (avgDt > 20 && drawCount > total * 0.4) {
+    if (avgDt > 20 && drawCount > total * 0.75) {
       if (slowSince < 0) slowSince = now
-      else if (now - slowSince > 1000) { drawCount = Math.round(drawCount * 0.5); geometry.setDrawRange(0, drawCount); slowSince = -1; document.documentElement.dataset.glQuality = 'low' }
+      else if (now - slowSince > 1000) { drawCount = Math.round(drawCount * 0.6); geometry.setDrawRange(0, drawCount); slowSince = -1; document.documentElement.dataset.glQuality = 'low' }
     } else slowSince = -1
 
-    if (!started) { started = true; document.documentElement.classList.add('gl-on') }
+    // brief-v4.5 §4.4: gl-on after 2 drawn frames (main.tsx reveals the canvas only then, in one frame)
+    if (!started && frameNo >= 2) { started = true; document.documentElement.classList.add('gl-on') }
     // a scene that keeps moving on its own (breathing vertex, flowing wires) asks for frames
     // office, FAQ and final also breathe while the page is still (owner 09/11: everything alive)
-    return opts.freezeAt === undefined && (heroOn || formField || animating || (youOn && phoneLit > 0.01) || gridVisible || triOn || (cu.uOffOn.value as number) > 0 || officeFloor)
+    if (counting) (window as Window & { __frames?: number }).__frames = frameNo
+    // dev / ?probe: which scene keeps the loop drawing (the rest probe names the culprit instead of guessing)
+    if (counting) (window as Window & { __why?: string }).__why = Object.entries({ hz: !!hz, formField, you: youOn && phoneLit > 0.01, grid: gridVisible, office: (cu.uOffOn.value as number) > 0, animating, hero: heroOn, fly: flyOn, pkt: pktOn, frag: fragOn, floor: officeFloor }).filter(([, v]) => v).map(([k]) => k).join(',') + (animBy.length ? ` @${animBy.join('/')}` : '')
+    // brief-v4.3 §9.1: the page at rest does not draw. A scene on screen keeps the loop only for 1.5 s after the
+    // last scroll / resize / pointer move; after that only a deadline (a transition, a reveal, a lerp still
+    // settling) asks for frames. The office loop wakes the ticker itself on each NEW video frame (rVFC), so the
+    // model keeps playing at the video's rate (24 fps) while it is on screen, and nothing else is drawn.
+    const live = heroOn || formField || (youOn && phoneLit > 0.01) || gridVisible || (cu.uOffOn.value as number) > 0 || officeFloor
+    return opts.freezeAt === undefined && (animating || (live && now - lastInput < 1500))
   }
 
   const onLost = (e: Event) => {
     e.preventDefault()
-    document.documentElement.classList.remove('gl-on')
+    document.documentElement.classList.remove('gl-on', 'gl-show')
     ticker.remove(frame)
   }
   const onRestored = () => { // one retry: rebuild the GPU objects on the new context
@@ -678,12 +911,15 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
     ticker.remove(frame)
     removeEventListener('resize', onResize)
     removeEventListener('pointermove', onPtr)
+    removeEventListener('bu-morph', onIntro)
+    removeEventListener('scroll', onInput)
+    removeEventListener('resize', onInput)
     document.removeEventListener('visibilitychange', onHidden)
     canvas.removeEventListener('webglcontextlost', onLost)
     canvas.removeEventListener('webglcontextrestored', onRestored)
     dropOffice()
     geometry?.remove()
     pointProgram.remove(); fieldProgram.remove(); compProgram.remove(); quad.remove()
-    document.documentElement.classList.remove('gl-on')
+    document.documentElement.classList.remove('gl-on', 'gl-show')
   }
 }

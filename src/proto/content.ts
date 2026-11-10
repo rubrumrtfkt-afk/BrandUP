@@ -1,12 +1,18 @@
-// Copy v5.1 (docs/redesign/copy.md, section "v5.1"; the office phrase stays v5 by the owner's call). Strings marked MODELO are samples
-// that must not ship without the owner's real data (copy §5).
-export const COPY_VERSION = 'v5.1'
+// Copy v5.4 (docs/redesign/copy.md, section "v5.4": the long hero for businesses in general; variation B of the H1, the
+// owner's sentence, by the orchestrator's call 09/11) over v5.3/v5.2 (the office phrase stays as it is by the owner's call). Strings marked
+// MODELO are samples that must not ship without the owner's real data (copy §5). The four brief-v4.4 example strings
+// (night.count, night.aria, office.orderTag, faq.contact) were written by the copy-director in v5.3.
+export const COPY_VERSION = 'v5.4'
 
 export const hero = {
-  h1: ['Over $250K per month', 'within 90 days.'],
-  lede: 'AI agents we run. You approve the big calls.',
+  // copy v5.4 §A variation B: three blocks of sense; index 1 is the one maximum emphasis (<strong>, the giant line). If the
+  // line must break, it breaks between the blocks, never inside "$250K per month" (390 breaks it on purpose: $250K / per month)
+  h1: ['How businesses are generating over', '$250K per month', 'within 90 days by investing in automation and AI.'],
+  // copy v5.4 §B + §C: the short line "AI agents we run. You approve the big calls." is fused into the support; the
+  // [before, strong, after] split keeps "over 10 million" as the secondary emphasis (text weight, no colour, no size)
+  lede: ['AI agents and automation that put you first when customers search, compare and decide who to buy from. We run them. You approve the big calls. We have already generated ', 'over 10 million', ' in sales for our clients.'],
   cta: 'Build my AI office',
-  proof: 'A$10M+ generated for clients.', // only if proven (copy §5 item 2)
+  // copy v5.4 §C: hero.proof is gone (the proof now lives in the support; saying it twice was the same thing twice)
   vertex: 'You approve here',
 }
 
@@ -46,7 +52,8 @@ export const revenue = {
 
 export const night = {
   h2: 'While you sleep, the office works.',
-  aria: 'Overnight, 6pm to 8am, six agents work at their desks while you sleep at home: enquiries answered, quotes sent, leads ranked, invoices chased, 14 leads followed up, and at 7:58 one request waits on your phone.',
+  // brief-v4.4 §4.6 + copy v5.3: the phone gets its own sentence, with the count
+  aria: 'Overnight, from 6pm to 8am, six agents work at their desks while you sleep: enquiries answered, quotes sent, leads ranked, invoice reminders drafted, 14 leads followed up. Nine jobs done, and each result reaches your phone. At 7:58am, one request waits there for your yes.', // copy v5.3
   // [time, action/detail]; order of the crest, 18:00 → 08:00.
   labels: [
     ['18:40', 'Enquiry answered · Geelong'],
@@ -68,19 +75,20 @@ export const night = {
     { name: 'Social media', short: 'Social' }, { name: 'Receptionist', short: 'Reception' }, { name: 'Analyst', short: 'Analyst' },
   ],
   tasks: [[4, 'enquiry answered'], [0, 'quote sent'], [1, 'order logged'], [2, 'spend capped'], [3, 'review answered'], [5, 'leads ranked'], [1, 'reminders drafted'], [0, '14 followed up'], [5, 'report ready'], [-1, '1 waiting']] as [number, string][],
-  office: 'Office', home: 'Home', waiting: '1 waiting',
+  home: 'You, asleep', waiting: '1 waiting',
+  count: 'done overnight', // copy v5.3 (≤ 3 words, beside the number; no plural noun: reads at 0, 1 and 9)
   posterAt: '02:14', // the poster / reduced-motion / no-JS frame
 }
 
 export const office = {
   h2: ['Never late.', 'Never asks for a raise.'],
-  // brief-v4.1 §4.2 (K2): the human line the agent replaces. Frequency word = the brief's example,
-  // pending the copy-director's pick (§7.2). Same word on both lines.
+  // brief-v4.1 §4.2 (K2): the human line the agent replaces (copy v5.1: "Sometimes", the same word on both lines)
   human: 'Sometimes',
   agent: 'Never',
   rest: ['late.', 'asks for a raise.'],
   // brief-v4.1 §4.3: the 90-day line replaces the "Desk by desk" title. MODELO days (copy §2.7).
   lineLabel: 'First 90 days',
+  orderTag: 'For you: Sam’s quote', // copy v5.3 (≤ 4 words): the follow-up desk sends the order to your phone
   alt: 'Architect’s model of the BrandUp office: six desks with resin figures and the owner’s room, lit like a studio photo.',
   // speaker → listener, question, answer (desk ids match render/v2/desks.json)
   talk: [
@@ -100,12 +108,18 @@ export const you = {
   orders: [
     { desk: 'follow-up', top: ['Your follow-up', 'A$14,200', 'Sam'], ask: 'Follow up Sam’s quote, unanswered for 6 days?', why: 'Sam opened it twice and hasn’t replied since Monday.', preview: 'Hi Sam, did the steel bracket quote land OK? Happy to adjust.', sent: 'Sent. Follow-up on its way to Sam.' },
     { desk: 'bookkeeper', top: ['Your bookkeeper', 'A$18,400', '3 clients'], ask: 'Send reminders for 3 overdue invoices?', why: 'All three are 14 to 30 days overdue, with no reminder this month.', preview: 'Hi, a friendly reminder that invoice #1047 for A$6,200 was due on 21 October. Thank you.', sent: 'Sent. Reminders on their way to 3 clients.' },
-    // brief-v4.1 §4.5 / §7.2: order 3 is one the owner would DECLINE (a discount to close). Draft text,
-    // pending the copy-director (≤ 10 words ask, ≤ 14 why).
+    // brief-v4.1 §4.5: order 3 is one the owner would DECLINE (a discount to close); copy v5.2 keeps it (9 / 12 words)
     { desk: 'receptionist', top: ['Your receptionist', 'Pallet racking quote'], ask: 'Offer 15% off to close the racking quote today?', why: 'The buyer asked for a better price. Margins are yours to set.', preview: 'Hi, we can take 15% off the racking quote if you confirm today.', sent: 'Declined. Nothing was sent.' },
   ],
   arriving: (desk: string) => `New request from your ${desk}.`,
   approve: 'Approve', edit: 'Edit', decline: 'Decline',
+  // brief-v4.3 §4.4: the button's state while the scroll acts (copy v5.2: unchanged)
+  approveG: ['Approve', 'Approving…', 'Approved'] as const, declineG: ['Decline', 'Declining…', 'Declined'] as const,
+  // EM AVALIAÇÃO (?scrollhint=0 removes it): only during order 1 (copy v5.2)
+  scrollHint: 'Scroll to approve.',
+  // brief-v4.5 §9.2: the line under the agent whose turn it is (≤ 14 chars each). The brief's own examples, PENDING the
+  // copy-director (§12.2 asked for them; not in copy.md v5.4)
+  agentState: { waiting: 'Asking you', sent: 'Sending', declined: 'Stopped', clear: '' } as Record<string, string>,
   sending: 'Sending…', sendMine: 'Send my version', edited: 'Edited. Your version was sent.',
   declined: 'Declined. Nothing was sent.', clear: 'All clear. Nothing is waiting for you.', error: 'Couldn’t send. Try again.',
   // brief-v4.2 §6, the lock screen (strings as written in the brief; the copy-director may still tune them)
@@ -128,6 +142,7 @@ export const days = {
 
 export const faq = {
   h2: 'Questions',
+  contact: 'Can’t see your question? Email or call us.', // copy v5.3: the verbs follow the links (email first, as in the FAQ markup)
   items: [
     ['Will the AI act without my approval?', 'Only where you allow it. You choose what runs on its own, like answering a common enquiry, and what waits for your yes, like a price or a payment reminder. Every action is logged.'],
     ['Is my data safe?', 'Your data is used only to run your agents and is never shared with other clients. Each agent reaches only the accounts you connect, and you can ask us to delete it.'],
@@ -137,7 +152,11 @@ export const faq = {
   ] as [string, string][],
 }
 
-export const final = { h2: 'Want a team like this?' }
+export const final = {
+  h2: 'Want a team like this?',
+  // brief-v4.3 §5.3: the sr-only line that names the six dots (copy v5.2)
+  team: 'This is the team from the top of the page: follow-up, bookkeeper, ad manager, social media, receptionist and analyst.',
+}
 
 export const footer = {
   // MODELO contact data (copy §2.10): real data or nothing before launch.

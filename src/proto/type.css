@@ -12,7 +12,10 @@
   --type-hook-size: clamp(2.25rem, min(10.25vw, 1.014rem + 6.095vw), 6.5rem);
   --type-hook-weight: 400; --type-hook-stretch: 87.5%; --type-hook-leading: 0.94;
   --type-hook-tracking: calc(0.0125rem - 0.2667vw); --type-hook-measure: 8.7em;
-
+  /* v52 (owner: "$250K per month" too big): the giant line takes the hook size again (104 / 40 px, the token above, the
+     largest of the scale). The frame that holds it is the ONE new size the orchestrator allowed for the long hook
+     (brief-v4.5 §12.1), so the scale is 6 sizes: 104 / 88 / 36 frame / 18 / 16 / 15 (the v4.5 giant of 184 is gone). */
+  --type-frame-size: clamp(1.25rem, 0.95rem + 1.5vw, 2.25rem); --type-frame-leading: 1.16;
 
   /* v4.1 §7.1: H2 from 56 to 88 px on desktop; the scale is 5 sizes: 104 / 88 / 18 / 16 / 15 */
   --type-h2-size: clamp(2.25rem, 1.2rem + 4.4vw, 5.5rem);

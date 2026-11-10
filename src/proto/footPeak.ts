@@ -4,9 +4,12 @@
  *  (the logo is purple + white); the green is only the energy at the mountain's foot, a thin dotted aura OUTSIDE the
  *  silhouette, never in the arrow. Drawn once per size; while on screen (and not reduced motion) only the foot's
  *  energy and the ridge twinkle, at 8 fps, paused with the tab hidden or the footer off screen. */
-const RAMP = ['#1A0B33', '#9232EA', '#C9A2FF', '#FBF7FF'] as const
-const MINT = ['#0E3B2A', '#2FD08F', '#58F6B1'] as const
-const B4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+import { MINT, RAMP, bayer, drawLevels, rng } from './grain'
+// brief-v4.4 §8.1 ground-peak: the mountain paints FROM ITS FOOT TO ITS APEX by a Bayer threshold (a cell lights when
+// bayer < advance − its relative height), triggered at 25 % visible, 900 ms; the foot's mint lights last (the page's
+// last green); then the 8-fps shimmer of v4.5, which now stops after 5 s
+const REVEAL_MS = 900, SHIMMER_MS = 5000
+const revealEase = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 2.6) // ≈ cubic-bezier(.3, .6, .2, 1)
 
 type Geo = { w: number; h: number; pitch: number; dot: number; cx: number; apex: number; base: number; half: number }
 
@@ -18,7 +21,6 @@ function inArrow(u: number, v: number) {
   return v <= 27.5 || Math.hypot(u - 20, v - 27.5) <= 2.5 // the shaft's rounded foot
 }
 
-function rng(seed: number) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296 } }
 
 export function initFootPeak(canvas: HTMLCanvasElement, reduced: boolean): () => void {
   const ctx = canvas.getContext('2d')
@@ -28,6 +30,8 @@ export function initFootPeak(canvas: HTMLCanvasElement, reduced: boolean): () =>
   let energy: { x: number; y: number; k: number }[] = []
   let ridge: { x: number; y: number }[] = []
   let raf = 0, last = 0, visible = false
+  let adv = reduced ? 2 : 0, revealAt = -1, stopAt = 0
+  let order: Int32Array = new Int32Array(0), thr = new Float32Array(0)
   const still = document.createElement('canvas') // the static field, painted once per size
 
   function layout() {
@@ -53,7 +57,8 @@ export function initFootPeak(canvas: HTMLCanvasElement, reduced: boolean): () =>
     still.width = canvas.width; still.height = canvas.height
     const sc = still.getContext('2d')
     if (sc) { sc.setTransform(dpr, 0, 0, dpr, 0, 0); drawField(sc) }
-    paint(0)
+    if (adv >= 2) paint(reduced ? 0 : performance.now())
+    else { ctx!.setTransform(1, 0, 0, 1, 0, 0); ctx!.clearRect(0, 0, canvas.width, canvas.height); const a = adv; adv = 0; revealTo(a) }
   }
 
   function build() {
@@ -65,7 +70,7 @@ export function initFootPeak(canvas: HTMLCanvasElement, reduced: boolean): () =>
     const tall = g.base - g.apex
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
       const x = i * g.pitch + g.pitch / 2, y = j * g.pitch + g.pitch / 2
-      const b = (B4[(i % 4) + (j % 4) * 4] + 0.5) / 16
+      const b = bayer(i, j)
       const grain = (rnd() - 0.5) * 0.3
       let I = 0
       const t = (y - g.apex) / tall // 0 apex … 1 foot
@@ -104,15 +109,38 @@ export function initFootPeak(canvas: HTMLCanvasElement, reduced: boolean): () =>
       if (outside && t > 0.82 && t <= 1.04 && Math.abs(Math.abs(dx) - halfAt) < g.pitch * 2.2 && rnd() < 0.42) energy.push({ x, y, k: rnd() })
       if (!outside && t < 0.22 && (halfAt - Math.abs(dx)) < g.pitch * 1.5 && rnd() < 0.5) ridge.push({ x, y })
     }
+    // the reveal: each lit cell's threshold = its height over the foot (0 at the foot, 1 at the apex) + its Bayer value
+    thr = new Float32Array(cols * rows)
+    const lit: number[] = []
+    for (let k = 0; k < field.length; k++) {
+      if (!field[k]) continue
+      const i = k % cols, j = Math.floor(k / cols)
+      thr[k] = Math.min(1, Math.max(0, (g.base - (j * g.pitch + g.pitch / 2)) / tall)) + bayer(i, j)
+      lit.push(k)
+    }
+    lit.sort((p, q) => thr[p] - thr[q])
+    order = Int32Array.from(lit)
+  }
+  // draws the cells whose threshold the advance just passed (incremental; the canvas is not cleared)
+  function revealTo(a: number) {
+    const g = geo
+    if (!g) return
+    const cols = Math.ceil(g.w / g.pitch)
+    const o = (g.pitch - g.dot) / 2
+    ctx!.setTransform(canvas.width / g.w, 0, 0, canvas.height / g.h, 0, 0)
+    for (const k of order) {
+      const t = thr[k]
+      if (t > a) break
+      if (t <= adv) continue
+      ctx!.fillStyle = RAMP[field[k] - 1]
+      ctx!.fillRect((k % cols) * g.pitch + o, Math.floor(k / cols) * g.pitch + o, g.dot, g.dot)
+    }
+    adv = a
   }
 
   function drawField(c: CanvasRenderingContext2D) {
     const g = geo!
-    const cols = Math.ceil(g.w / g.pitch), rows = Math.ceil(g.h / g.pitch)
-    for (let lv = 1; lv <= 4; lv++) {
-      c.fillStyle = RAMP[lv - 1]
-      for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) if (field[j * cols + i] === lv) c.fillRect(i * g.pitch + (g.pitch - g.dot) / 2, j * g.pitch + (g.pitch - g.dot) / 2, g.dot, g.dot)
-    }
+    drawLevels(c, field, Math.ceil(g.w / g.pitch), Math.ceil(g.h / g.pitch), g.pitch, g.dot)
   }
 
   function paint(time: number) {
@@ -138,14 +166,20 @@ export function initFootPeak(canvas: HTMLCanvasElement, reduced: boolean): () =>
   const loop = (now: number) => {
     raf = 0
     if (!visible || document.hidden) return
-    if (now - last >= 125) { last = now; paint(now) }
+    if (adv < 2) {
+      if (revealAt < 0) revealAt = now
+      const e = revealEase((now - revealAt) / REVEAL_MS)
+      revealTo(e * 2)
+      if (adv >= 2) { stopAt = now + SHIMMER_MS; paint(now) }
+    } else if (now >= stopAt) { paint(0); return } // the shimmer stops: one still frame, the loop ends
+    else if (now - last >= 125) { last = now; paint(now) }
     raf = requestAnimationFrame(loop)
   }
-  const kick = () => { if (!reduced && visible && !document.hidden && !raf) raf = requestAnimationFrame(loop) }
+  const kick = () => { if (!reduced && visible && !document.hidden && !raf && (adv < 2 || performance.now() < stopAt)) raf = requestAnimationFrame(loop) }
 
   const ro = new ResizeObserver(() => layout())
   ro.observe(canvas)
-  const io = new IntersectionObserver(([e]) => { visible = !!e?.isIntersecting; kick() })
+  const io = new IntersectionObserver(([e]) => { visible = !!e?.isIntersecting; kick() }, { threshold: 0.25 })
   io.observe(canvas)
   document.addEventListener('visibilitychange', kick)
   return () => {

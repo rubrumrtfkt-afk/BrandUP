@@ -1,7 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './type.css'
-import './proto.css'
+// v55: type.css and proto.css are linked from proto.html (render-blocking in dev too: no unstyled first frame)
 import { Proto } from './Proto'
 
 const params = new URLSearchParams(location.search)
@@ -43,19 +42,27 @@ function idle(fn: () => void) {
   else setTimeout(fn, 60)
 }
 
-/** The intro (proto.html) owns the right side for ≤ 1.5 s: the poster and the engine wait for it to end. */
-function afterIntro(run: () => void) {
-  if (!root.classList.contains('intro')) { run(); return }
-  const mo = new MutationObserver(() => { if (!root.classList.contains('intro')) { mo.disconnect(); run() } })
+/** brief-v4.5 §4.4: the engine DOWNLOADS during the intro (afterLcp is still the gate, so it never competes with the
+ *  LCP); the intro only gates the REVEAL. The canvas draws hidden (visibility, not opacity: no compositing) until the
+ *  engine has drawn 2 frames (gl-on) AND the intro has run its hand-off time; then one class flips both in the same
+ *  frame (no fade: the frames are the same picture). */
+function revealWhenReady() {
+  // v52: the intro hands over at .82 s × k (proto.html adds .intro-handoff, also on a skip and at its end): from then the
+  // canvas may show, in the first frame where the engine has drawn 2 frames (gl-on). Without an intro: at once.
+  const ready = () => !root.classList.contains('intro') || root.classList.contains('intro-handoff')
+  const flip = () => { if (ready() && root.classList.contains('gl-on')) { mo.disconnect(); requestAnimationFrame(() => root.classList.add('gl-show')) } }
+  const mo = new MutationObserver(flip)
   mo.observe(root, { attributes: true, attributeFilter: ['class'] })
+  flip()
 }
 
-afterLcp(() => afterIntro(() => {
+afterLcp(() => {
   root.classList.add('posters')
   const wantGl = params.get('gl') !== '0' && !reduced && !lowEnd
   if (!wantGl) { root.classList.add('gl-off'); return }
   const canvas = document.getElementById('gl') as HTMLCanvasElement | null
   if (!canvas) return
+  revealWhenReady()
   import('./engine/engine')
     .then(({ startEngine }) => {
       const freeze = params.get('poster') ? 6 : undefined
@@ -66,7 +73,7 @@ afterLcp(() => afterIntro(() => {
       if (import.meta.hot) import.meta.hot.dispose(() => stop?.())
     })
     .catch((error: unknown) => {
-      console.error('engine failed to load; posters stay', error)
+      console.error('engine failed to load; the SVG logo stays', error)
       root.classList.add('gl-off')
     })
-}))
+})
