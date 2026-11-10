@@ -178,6 +178,13 @@
   color: var(--aqua);
 }
 
+/* Outside a form grid (invitation screen) the link would sit flush under the error text. */
+.admin-login-panel > .admin-form-error + .admin-link-button {
+  display: block;
+  width: fit-content;
+  margin: 12px auto 0;
+}
+
 .admin-state-screen {
   display: grid;
   place-content: center;

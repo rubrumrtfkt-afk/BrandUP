@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   ArrowLeft,
@@ -15,8 +15,9 @@ import LeadBoard from './LeadBoard'
 import type { Lead, LeadStatus } from './lib/leadboard'
 import {
   clearPasswordSetup,
-  detectPasswordLink,
+  decideInitialLink,
   hasAuthLinkError,
+  parsePasswordLink,
   readPasswordSetup,
   storePasswordSetup,
 } from './lib/passwordLink'
@@ -24,9 +25,10 @@ import type { PasswordLinkType } from './lib/passwordLink'
 
 // Read before Supabase finishes parsing the URL, because it clears the auth hash.
 const initialUrl = new URL(window.location.href)
-const initialLinkError = hasAuthLinkError(initialUrl.href)
-  ? 'This link has expired or was already used. Enter your email to get a new reset link.'
-  : ''
+const initialLink = parsePasswordLink(initialUrl.href)
+const expiredLinkMessage =
+  'This link has expired or was already used. Enter your email to get a new reset link.'
+const initialLinkError = hasAuthLinkError(initialUrl.href) ? expiredLinkMessage : ''
 
 function AdminPage() {
   const [authReady, setAuthReady] = useState(false)
@@ -38,13 +40,12 @@ function AdminPage() {
   const [isAcceptingInvitation, setIsAcceptingInvitation] = useState(false)
   const [isSettingPassword, setIsSettingPassword] = useState(false)
   const [isSendingReset, setIsSendingReset] = useState(false)
-  const [pendingInviteToken] = useState(() => initialUrl.searchParams.get('token_hash') ?? '')
-  const [pendingLinkType] = useState<PasswordLinkType>(
-    () => detectPasswordLink(initialUrl.href) ?? 'invite',
-  )
-  const [passwordSetup, setPasswordSetup] = useState<PasswordLinkType | null>(() =>
-    readPasswordSetup(sessionStorage),
-  )
+  const [pendingInviteToken] = useState(() => initialLink?.tokenHash ?? '')
+  const [pendingLinkType] = useState<PasswordLinkType>(() => initialLink?.type ?? 'invite')
+  // Set only on trusted paths: the session the link produced, or a reload of that same flow.
+  const [passwordSetup, setPasswordSetup] = useState<PasswordLinkType | null>(null)
+  // While a password link is being resolved, session events belong to the previous session.
+  const linkResolvedRef = useRef(initialLink === null)
   const [loginView, setLoginView] = useState<'signIn' | 'forgot'>(() =>
     initialLinkError ? 'forgot' : 'signIn',
   )
@@ -110,11 +111,35 @@ function AdminPage() {
         data: { session },
       } = await supabase.auth.getSession()
 
-      if (session) {
-        setSessionEmail(session.user.email ?? null)
+      const decision = decideInitialLink(initialLink, session?.access_token ?? null)
 
-        if (!readPasswordSetup(sessionStorage)) {
-          await loadDashboard(session.user.id, session.user.email ?? null)
+      if (decision.linkFailed) {
+        clearPasswordSetup(sessionStorage)
+        setLoginView('forgot')
+        setResetError(expiredLinkMessage)
+      }
+
+      if (decision.signOutExisting) {
+        // Local scope: end this browser's session only, so the link's own token decides
+        // whose password changes. That admin's other devices stay signed in.
+        const { error } = await supabase.auth.signOut({ scope: 'local' })
+        if (error) {
+          setInvitationError('Your previous session could not be closed. Reload this page and try the link again.')
+        }
+      }
+
+      linkResolvedRef.current = true
+      const usableSession = decision.signOutExisting || decision.linkFailed ? null : session
+
+      if (usableSession) {
+        setSessionEmail(usableSession.user.email ?? null)
+        // With a link in the URL, decideInitialLink only keeps the session the link created.
+        const pendingSetup = initialLink ? initialLink.type : readPasswordSetup(sessionStorage)
+
+        if (pendingSetup) {
+          setPasswordSetup(pendingSetup)
+        } else {
+          await loadDashboard(usableSession.user.id, usableSession.user.email ?? null)
         }
       }
 
@@ -134,6 +159,10 @@ function AdminPage() {
         return
       }
 
+      if (!linkResolvedRef.current) {
+        return
+      }
+
       if (event === 'PASSWORD_RECOVERY') {
         storePasswordSetup(sessionStorage, 'recovery')
         setSessionEmail(session.user.email ?? null)
@@ -145,12 +174,6 @@ function AdminPage() {
       if (event === 'SIGNED_IN') {
         setSessionEmail(session.user.email ?? null)
         setAuthReady(true)
-
-        const pendingSetup = readPasswordSetup(sessionStorage)
-
-        if (pendingSetup) {
-          setPasswordSetup(pendingSetup)
-        }
       }
     })
 
@@ -164,6 +187,9 @@ function AdminPage() {
     event.preventDefault()
     setIsSigningIn(true)
     setLoginError('')
+    // A typed password is not a link flow: a leftover flag must not open the password screen.
+    clearPasswordSetup(sessionStorage)
+    setPasswordSetup(null)
 
     const formData = new FormData(event.currentTarget)
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -258,6 +284,8 @@ function AdminPage() {
       return
     }
 
+    // The token is spent: drop it from the URL so a reload resumes this session's password step.
+    window.history.replaceState({}, '', '/?admin=1')
     setSessionEmail(data.session.user.email ?? null)
     setPasswordSetup(pendingLinkType)
     setIsAcceptingInvitation(false)

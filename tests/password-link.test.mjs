@@ -89,3 +89,31 @@ test('Every link the router treats as a password link is also kept away from the
     assert.equal(calls.length, 0, `Pixel fired on ${path}`)
   }
 })
+
+test('Links expose their own token so the session can be checked against it', () => {
+  assert.deepEqual(link.parsePasswordLink(`${site}?type=recovery&token_hash=hash-b`), { type: 'recovery', tokenHash: 'hash-b', accessToken: null })
+  assert.deepEqual(link.parsePasswordLink(`${site}#access_token=token-b&token_type=bearer&type=invite`), { type: 'invite', tokenHash: null, accessToken: 'token-b' })
+})
+
+test("Admin A's session never sets the password for admin B's link", () => {
+  const hashLinkB = link.parsePasswordLink(`${site}?type=recovery&token_hash=hash-b`)
+  const implicitLinkB = link.parsePasswordLink(`${site}#access_token=token-b&type=recovery`)
+  // token_hash: the old session is closed and only verifyOtp may create the one that sets the password.
+  assert.deepEqual(link.decideInitialLink(hashLinkB, 'token-a'), { signOutExisting: true, allowPasswordSetup: false, linkFailed: false })
+  assert.deepEqual(link.decideInitialLink(hashLinkB, null), { signOutExisting: false, allowPasswordSetup: false, linkFailed: false })
+  // implicit: supabase-js keeps the old session when the URL token fails, so a mismatch is a failed link.
+  assert.deepEqual(link.decideInitialLink(implicitLinkB, 'token-a'), { signOutExisting: true, allowPasswordSetup: false, linkFailed: true })
+  assert.deepEqual(link.decideInitialLink(implicitLinkB, null), { signOutExisting: false, allowPasswordSetup: false, linkFailed: true })
+  assert.deepEqual(link.decideInitialLink(implicitLinkB, 'token-b'), { signOutExisting: false, allowPasswordSetup: true, linkFailed: false })
+  // No link: a normal visit keeps its session.
+  assert.deepEqual(link.decideInitialLink(null, 'token-a'), { signOutExisting: false, allowPasswordSetup: false, linkFailed: false })
+})
+
+test('The admin page only opens the password screen on trusted paths', () => {
+  const code = source('AdminPage.tsx')
+  assert.match(code, /useState<PasswordLinkType \| null>\(null\)/, 'no password screen straight from storage')
+  assert.match(code, /decideInitialLink\(initialLink, session\?\.access_token \?\? null\)/)
+  assert.match(code, /signOut\(\{ scope: 'local' \}\)[\s\S]*linkResolvedRef\.current = true/, 'old session closed before the link resolves')
+  const signedIn = code.slice(code.indexOf("if (event === 'SIGNED_IN')"))
+  assert.doesNotMatch(signedIn.slice(0, signedIn.indexOf('}') + 1), /setPasswordSetup/, 'SIGNED_IN (also fired for a restored old session) must not open the password screen')
+})

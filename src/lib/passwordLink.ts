@@ -10,14 +10,57 @@ export const PASSWORD_SETUP_KEY = 'brandup-password-setup'
 const linkTypePattern = /[?&#]type=(invite|recovery)(?:&|$)/i
 const tokenInHashPattern = /(^|[#&])access_token=/
 
+export type PasswordLink = {
+  type: PasswordLinkType
+  tokenHash: string | null
+  accessToken: string | null
+}
+
 // An invite/recovery link carries its type plus a token, either as
 // `?token_hash=` (OTP template) or `#access_token=` (implicit flow).
-export function detectPasswordLink(href: string): PasswordLinkType | null {
+export function parsePasswordLink(href: string): PasswordLink | null {
   const url = new URL(href)
   const type = linkTypePattern.exec(url.search + url.hash)?.[1]?.toLowerCase()
   if (type !== 'invite' && type !== 'recovery') return null
-  const hasToken = url.searchParams.has('token_hash') || tokenInHashPattern.test(url.hash)
-  return hasToken ? type : null
+  const tokenHash = url.searchParams.get('token_hash')
+  const accessToken = tokenInHashPattern.test(url.hash)
+    ? new URLSearchParams(url.hash.slice(1)).get('access_token')
+    : null
+  if (!tokenHash && !accessToken) return null
+  return { type, tokenHash, accessToken }
+}
+
+export function detectPasswordLink(href: string): PasswordLinkType | null {
+  return parsePasswordLink(href)?.type ?? null
+}
+
+export type InitialLinkDecision = {
+  // End the session that was already in the browser before using the link.
+  signOutExisting: boolean
+  // The current session came from this link and may set the new password.
+  allowPasswordSetup: boolean
+  // The implicit link did not produce its own session (invalid, expired, reused).
+  linkFailed: boolean
+}
+
+// When a password link opened the page, the link's token always wins. A session
+// that was already there (another admin, or a stale one) must never reach
+// updateUser: a token_hash link only gets a session from verifyOtp, and an
+// implicit link only counts when supabase-js stored the link's own access token.
+export function decideInitialLink(
+  link: PasswordLink | null,
+  sessionAccessToken: string | null,
+): InitialLinkDecision {
+  if (!link) return { signOutExisting: false, allowPasswordSetup: false, linkFailed: false }
+  if (link.tokenHash) {
+    return { signOutExisting: sessionAccessToken !== null, allowPasswordSetup: false, linkFailed: false }
+  }
+  const fromLink = sessionAccessToken !== null && sessionAccessToken === link.accessToken
+  return {
+    signOutExisting: sessionAccessToken !== null && !fromLink,
+    allowPasswordSetup: fromLink,
+    linkFailed: !fromLink,
+  }
 }
 
 // Supabase redirects an expired or reused link with `#error_code=...` and no token.
