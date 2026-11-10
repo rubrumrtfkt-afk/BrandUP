@@ -10,8 +10,11 @@
     />
     <title>BrandUp | Marketing for restaurants in Australia</title>
     <script>
-      // Meta Pixel, only on the live public site (never on the lead dashboard or local tests).
-      if (location.hostname === 'brandupadvisory.com' && new URLSearchParams(location.search).get('admin') !== '1' && !location.hash.toLowerCase().startsWith('#/admin')) {
+      // Meta Pixel, only on the live public site (never on the lead dashboard or local tests), and never on a
+      // Supabase auth link (invite/recovery): its token_hash/access_token would ride to Meta with the PageView.
+      var buQuery = new URLSearchParams(location.search), buHash = location.hash;
+      var buAuth = buQuery.has('token_hash') || buQuery.has('access_token') || /(^|[#&])(access_token|refresh_token|token_hash)=/.test(buHash) || /[?&#]type=(invite|recovery|signup|magiclink)(&|$)/i.test(location.search + buHash);
+      if (location.hostname === 'brandupadvisory.com' && buQuery.get('admin') !== '1' && !buHash.toLowerCase().startsWith('#/admin') && !buAuth) {
         !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
         n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
         n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
