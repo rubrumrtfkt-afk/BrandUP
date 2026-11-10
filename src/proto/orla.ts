@@ -1,7 +1,6 @@
 import { bus } from './bus'
 import { MINT, RAMP, bayer, drawLevels, level, rng } from './grain'
 import { ticker } from './ticker'
-import { pageMargin } from './layout'
 import type { Pt } from './transit'
 
 /** brief-v4.4 §9 "a orla": the grain of the footer's mountain, resting around a content area (the two forms and the
@@ -54,18 +53,13 @@ export function initOrla(canvas: HTMLCanvasElement, area: HTMLElement, opts: { i
     const aw = area.offsetWidth, ah = area.offsetHeight
     if (!aw || !ah) return
     const portrait = innerWidth < 768
-    // v55d (owner, Safari 1440: the first form's orla "frames nothing": its base sat on the horizon 120 px under the form
-    // and its right band ran past the screen): the first form's orla hugs the form block itself (fields, button,
-    // privacy) and its side bands stay inside the page margin; the final form and the FAQ keep the v4.4 geometry
-    const hug = id === 'form' && !portrait
-    const padX = portrait ? 0 : hug ? 24 : 40, padY = portrait ? 20 : hug ? 32 : 40
+    const padX = portrait ? 0 : 40, padY = portrait ? 20 : 40
     const left = area.getBoundingClientRect().left
-    const S = portrait ? Math.max(8, Math.min(20, left)) : hug ? Math.max(16, Math.min(56, pageMargin(innerWidth) - padX - 8)) : 56
+    const S = portrait ? Math.max(8, Math.min(20, left)) : 56
     const B = portrait ? 40 : 72
     let yB = ah + padY
-    // §9.2: the form's horizon (uHz) IS the line of this base, when it sits just under the area (not the first form's
-    // since v55d: its horizon is the section's ground, below the beams' room, and the orla sits on the form)
-    const hz = id === 'form' ? null : opts.baseEl
+    // §9.2: the form's horizon (uHz) IS the line of this base, when it sits just under the area
+    const hz = opts.baseEl
     if (hz && hz.offsetParent && hz.offsetParent === area.offsetParent) {
       const hy = hz.offsetTop + hz.offsetHeight / 2 - area.offsetTop
       if (hy > ah + 8 && hy < ah + 180) yB = hy

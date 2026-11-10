@@ -164,7 +164,7 @@ uniform vec4 uBeamTo;     // beams converge: -, logo centre x, half width, on
 uniform vec4 uRise;       // cx, top y, progress 0…1, on
 uniform vec4 uAct[2];     // action rects (viewport px)
 uniform vec4 uActP[2];    // reach px, level, speed, on
-uniform vec4 uHzX;        // brief-v4.4 §8.1: x = the opening (the line draws from its centre to its ends), y = the fringe (0 where an orla replaces it)
+uniform vec4 uHzX;        // brief-v4.4 §8.1: x = the opening (the line draws from its centre to its ends), y = the fringe (0 where an orla replaces it), z = the end taper in px (0 = 160)
 uniform float uPktOn;     // brief-v4.4 §3.1: 1 while any packet is drawn (skips the loop otherwise)
 uniform vec4 uPkt[12];    // the green packets: 3 × (head + 3 ghosts): x, y, radius, intensity (mint, channel G)
 uniform float uFragOn;    // brief-v4.4 §3.2: 1 while any fragment flies
@@ -202,7 +202,8 @@ void main() {
   if (uHz.w > 0.) {
     float dy = p.y - uHz.z;
     float hcx = (uHz.x + uHz.y) * .5, hw = (uHz.y - uHz.x) * .5 * clamp(uHzX.x, 0., 1.);
-    float span = smoothstep(uHz.x, uHz.x + 160., p.x) * (1. - smoothstep(uHz.y - 160., uHz.y, p.x)) * (1. - smoothstep(hw - 24., hw, abs(p.x - hcx)));
+    float tp = uHzX.z > 0. ? uHzX.z : 160.;
+    float span = smoothstep(uHz.x, uHz.x + tp, p.x) * (1. - smoothstep(uHz.y - tp, uHz.y, p.x)) * (1. - smoothstep(hw - 24., hw, abs(p.x - hcx)));
     // brief-v4.3 §4.2: a 2-px core in light-core and a 96-px fringe above it in two dither levels; brief-v4.4 §9.5: the
     // fringe goes where an orla takes its place (uHzX.y = 0), never a double fringe
     I += ((abs(dy) < 1.5 ? 1.1 : exp(-dy * dy / 6.) * .8) + (dy < 0. ? (dy > -36. ? .44 : dy > -96. ? .27 : 0.) * uHzX.y : exp(-dy / 5.) * .18)) * span * uHz.w;

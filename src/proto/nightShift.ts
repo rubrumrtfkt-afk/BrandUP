@@ -162,9 +162,14 @@ export function initNightShift(reduced: boolean) {
     if (hz) {
       const hr = hz.getBoundingClientRect()
       const natural = (hr.top + hr.bottom) / 2 - hzD // where the line would be without the parallax
-      // v55d (owner: the line floated up into the middle of the section): the parallax only ever carries it DOWN, toward
-      // the night; it used to rise up to ~80 px toward the form first (d < 0 while the night's top was at .4–.95 vh)
-      const d = !root.classList.contains('gl-on') || r.top >= vh ? 0 : r.top >= 0 ? Math.max(0, (vh * 0.3 - natural) * (1 - r.top / vh)) : -3 * vh
+      // v55e (owner: the line floated up, then "vanished suddenly"). g = the line's height over the night's top (constant);
+      // d = (1 − top/vh)² (0.3 vh + g): 0 when the night enters, the night's horizon (0.3 vh) when its top reaches 0, and
+      // only ever DOWN relative to the content (the old curve rose ~80 px toward the form first). Quadratic, not linear:
+      // the line keeps its 178 px from the night's title (which fades it, engine) while the form is read, so it stays
+      // whole at rest and through the first half screen, then fades as the grid lights (≥ 350 ms, engine hzShow). It
+      // holds on 0.3 vh while it fades and only half a screen later leaves the screen (the engine stops drawing it)
+      const g = r.top - natural, u = 1 - r.top / vh
+      const d = !root.classList.contains('gl-on') || r.top >= vh ? 0 : r.top >= 0 ? u * u * (vh * 0.3 + g) : r.top > -vh * 0.6 ? vh * 0.3 - natural : -3 * vh
       if (d !== hzD) { hzD = d; hz.style.transform = d ? `translate3d(0, ${d.toFixed(1)}px, 0)` : '' }
     }
     // T3 "the dawn" (§5.3): as the office comes up (its top = this section's bottom), each figure comes apart while

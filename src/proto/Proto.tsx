@@ -54,7 +54,8 @@ export function Proto() {
             <Lines id="form-h" lines={form.h2} />
             <p className="lede" data-dark="16" data-in="voice-body">{form.lede}</p>
           </div>
-          <LeadForm id="diagnostic" orla="form" />
+          {/* v55e (owner: the dotted tray under the form read as a box and competed with the horizon): no orla here */}
+          <LeadForm id="diagnostic" />
           <div className="horizon" data-horizon="diagnostic" data-beam="96" aria-hidden="true" />
         </section>
         <Night />
@@ -241,13 +242,13 @@ const validate = (k: FieldKey, v: string): 'empty' | 'invalid' | null => {
 }
 const ORDER: FieldKey[] = ['name', 'company', 'email', 'phone', 'revenue']
 
-function LeadForm({ id, orla, compact = false }: { id: string; orla: OrlaId; compact?: boolean }) {
+function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; compact?: boolean }) {
   const formRef = useRef<HTMLFormElement>(null)
   const orlaRef = useRef<HTMLCanvasElement>(null)
   // brief-v4.4 §9: the orla around the form; its horizon (the sibling [data-horizon]) is the line of its base
   useEffect(() => {
     const f = formRef.current, c = orlaRef.current
-    return f && c ? initOrla(c, f, { id: orla, reduced, baseEl: f.parentElement?.querySelector<HTMLElement>('[data-horizon]') }) : undefined
+    return f && c && orla ? initOrla(c, f, { id: orla, reduced, baseEl: f.parentElement?.querySelector<HTMLElement>('[data-horizon]') }) : undefined
   }, [orla])
   const [values, setValues] = useState<Values>({ name: '', company: '', email: '', phone: '', revenue: '' })
   const [touched, setTouched] = useState<Partial<Record<FieldKey, boolean>>>({})
@@ -278,7 +279,7 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla: OrlaId; com
   }
   return (
     <form id={id} ref={formRef} className={compact ? 'lead compact' : 'lead'} data-dark={compact ? '' : undefined} data-in="voice-control" noValidate onSubmit={onSubmit}>
-      <canvas ref={orlaRef} className="orla" aria-hidden="true" />
+      {orla && <canvas ref={orlaRef} className="orla" aria-hidden="true" />}
       {fields.map((f) => {
         const err = message(f.key)
         const inputId = `${id}-${f.key}`

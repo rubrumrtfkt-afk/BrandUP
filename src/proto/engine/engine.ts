@@ -285,6 +285,7 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
   const onIntro = () => ticker.wake()
   addEventListener('bu-morph', onIntro)
   let introBox: [number, number, number] | null = null
+  let hzShow = 0, hzKey = '', hzLast: number[] | null = null
 
   const frame = (now: number, dt: number): boolean => {
     if (gl.isContextLost()) return false
@@ -501,6 +502,9 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
     fu.uTime.value = time
     let hz: HTMLElement | null = null
     for (const el of document.querySelectorAll<HTMLElement>('[data-horizon]')) { if (visible(rect(el), 40)) { hz = el; break } }
+    // v55e (owner: "the bar vanishes suddenly after the scroll down"): the line's light hzShow follows its target at most
+    // 1/350 per ms (a quick flick cannot take it in one frame), and with no horizon on screen it keeps its last box while
+    // it fades out
     const logoBox = rect(q('[data-final-logo]'))
     fu.uBeamTo.value = [0, 0, 0, 0]
     if (hz) {
@@ -529,13 +533,29 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
         // title coming up from below takes the line away only as it gets close; once above, the old hand-over rule
         if (nh && nh.y0 > r.top) hw = smooth(24, 144, nh.y0 - r.top)
         else if (nh) { const limit = nh.y1 + 56; hw = smooth(limit, limit + 120, r.top) }
-        if (nightR) hw = Math.min(hw, smooth(vh * 0.6, vh * 0.95, nightR.y0))
+        // v55e: was smooth(.6 vh, .95 vh): the night's top sits 50 px under the line, so the line was already at 66 % at
+        // rest and gone a little scroll later. The night's TITLE coming up to the line (above) is what fades it now; this
+        // only makes sure it is gone before the desks (night's top at .3 vh)
+        if (nightR) hw = Math.min(hw, smooth(vh * 0.3, vh * 0.55, nightR.y0))
       }
-      fu.uHz.value = [r.left, r.right, r.top + r.height / 2, hw]
-      fu.uHzX.value = [Math.min(1, ign / 0.5), 0, 0, 0]
+      const step = dt / 350
+      hzShow = hzKey !== hz.dataset.horizon ? hw : hzShow + Math.max(-step, Math.min(step, hw - hzShow))
+      hzKey = hz.dataset.horizon ?? ''
+      if (Math.abs(hzShow - hw) > 0.001) ask(530)
+      // the first form's line is the section's floor: it ends ON the grid margins (16-px taper, not 160)
+      hzLast = [r.left, r.right, r.top + r.height / 2, hzShow]
+      fu.uHz.value = hzLast.slice()
+      fu.uHzX.value = [Math.min(1, ign / 0.5), 0, hzKey === 'diagnostic' ? 16 : 0, 0]
+      if (counting) (window as Window & { __hz?: number[] }).__hz = [Math.round(hzLast[2]), +hzShow.toFixed(3), +Math.min(1, ign / 0.5).toFixed(3), +hw.toFixed(3)]
       fu.uBeam.value = beams.slice()
       if (toLogo && logoBox) fu.uBeamTo.value = [0, (logoBox.x0 + logoBox.x1) / 2, (logoBox.x1 - logoBox.x0) / 2, 1]
-    } else fu.uHz.value = [0, 0, 0, 0]
+    } else if (hzLast && hzShow > 0) {
+      hzShow = Math.max(0, hzShow - dt / 350)
+      hzLast[3] = hzShow
+      fu.uHz.value = hzLast.slice()
+      ask(540)
+      if (counting) (window as Window & { __hz?: number[] }).__hz = [Math.round(hzLast[2]), +hzShow.toFixed(3), -1, 0]
+    } else { fu.uHz.value = [0, 0, 0, 0]; hzShow = 0; hzKey = ''; if (counting) (window as Window & { __hz?: number[] }).__hz = [0, 0, 0, 0] }
 
     // ---- the phone (§4.4): the second network, its vertex at the base of the phone
     const phone = rect(q('[data-phone]'))

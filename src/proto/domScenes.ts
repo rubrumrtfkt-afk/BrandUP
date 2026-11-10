@@ -24,7 +24,13 @@ export function initDomScenes(reduced: boolean) {
     let k = 0
     for (const el of g.querySelectorAll<HTMLElement>('[data-in]')) {
       if (el.dataset.in === 'voice-q') continue // brief-v4.5 §10.1: each question enters on its own IO (below)
-      if (el.dataset.in === 'voice-control') { timers.push(window.setTimeout(() => { el.dataset.inState = 'on' }, 4000)); continue }
+      // v55e: the first form has no orla any more: its controls come in after the body's ladder (≈ 120 + 2 × 60 ms + the
+      // 480-ms rise), the same 240-ms fade; with an orla they still wait for it (4-s fallback)
+      if (el.dataset.in === 'voice-control') {
+        const orla = el.querySelector(':scope > .orla')
+        timers.push(window.setTimeout(() => { el.dataset.inState = 'on' }, orla ? 4000 : 360))
+        continue
+      }
       if (el.dataset.in === 'voice-body') el.style.setProperty('--k', String(Math.min(5, k++)))
       el.dataset.inState = 'on'
     }
