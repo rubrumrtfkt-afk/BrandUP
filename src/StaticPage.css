@@ -1,51 +1,132 @@
+/* /thank-you and /privacy in the v4 look (plano-producao §4, admin-crm-inventario §9.3 item 8): the landing's
+   colour and type tokens, no WebGL, no prerender. type.css is self-contained (fonts + the type scale only, no
+   WebGL layout rules) so it is imported directly; "BU Display" is declared here too, the same one-line face
+   every page that uses it declares for itself (index.html, app.html: juri-v4 D5, the preload never matched in
+   WebKit and the face downloaded twice). */
+@import './proto/type.css';
+@font-face { font-family: "BU Display"; src: url(/fonts/bu-display.woff2) format("woff2"); font-weight: 300 400; font-stretch: 87.5%; font-display: swap; }
+
+:root {
+  /* = src/proto/proto.css :root (ground/ink/mint). Duplicated, not imported: proto.css also carries the whole
+     WebGL engine's layout rules, which these two static pages do not want. Keep in sync if proto.css's :root
+     changes (there is no automated check for this; grep both files if the palette moves). */
+  --su-ground: #08070B;
+  --su-ink: #F4F1F8;
+  --su-mint: #58F6B1;
+}
+
 .static-page {
   display: flex;
   justify-content: center;
-  min-height: 100vh;
-  padding: clamp(64px, 10vw, 118px) 18px;
-  background: var(--bg);
+  min-height: 100svh;
+  padding: clamp(64px, 10vw, 118px) clamp(20px, 4.45vw, 64px);
+  background: var(--su-ground);
+  /* juri-v58 item 3: set once here so anything without its own font-family (the "Back to the website" link had
+     none) inherits this instead of the browser's serif default, not just h1/h2/p/li, which each set it already. */
+  font-family: var(--font-text);
+}
+
+.static-page :focus-visible {
+  outline: 3px solid rgba(88, 246, 177, 0.75);
+  outline-offset: 3px;
 }
 
 .static-page-inner {
   width: 100%;
-  max-width: 720px;
+  max-width: 44rem;
+}
+
+.static-page-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin-bottom: 40px;
+  color: var(--su-ink);
+  text-decoration: none;
+  font: 400 18px/1 var(--font-display);
+  font-stretch: 87.5%;
+  letter-spacing: -0.01em;
+}
+
+.static-page-brand svg {
+  width: 30px;
+  height: 30px;
 }
 
 .static-page-eyebrow {
-  margin: 0 0 14px;
-  color: var(--aqua);
-  font-size: 18px;
-  font-weight: 900;
+  margin: 0 0 16px;
+  color: var(--ink-2);
+  font-family: var(--font-text);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+  line-height: var(--type-label-leading);
+  letter-spacing: var(--type-label-tracking);
   text-transform: uppercase;
 }
 
 .static-page h1 {
-  margin: 0 0 20px;
-  color: var(--text-strong);
-  font-size: clamp(32px, 6vw, 46px);
-  line-height: 1.1;
+  margin: 0 0 24px;
+  color: var(--su-ink);
+  font-family: var(--font-display);
+  font-stretch: var(--type-hook-stretch);
+  font-size: clamp(2rem, 1.3rem + 2.6vw, 3.5rem);
+  font-weight: var(--type-h2-weight);
+  line-height: var(--type-h2-leading);
+  letter-spacing: var(--type-h2-tracking);
 }
 
 .static-page h2 {
-  margin: 34px 0 10px;
-  color: var(--text-strong);
-  font-size: 20px;
+  margin: 40px 0 10px;
+  color: var(--su-ink);
+  font-family: var(--font-display);
+  font-stretch: var(--type-hook-stretch);
+  font-size: 1.375rem;
+  font-weight: 400;
   line-height: 1.2;
 }
 
 .static-page p,
 .static-page li {
-  color: var(--text);
-  font-size: 16px;
-  line-height: 1.6;
+  max-width: var(--type-body-measure);
+  color: var(--su-ink);
+  font-family: var(--font-text);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-leading);
+}
+
+.static-page ul {
+  margin: 0 0 16px;
+  padding-left: 1.25em;
+}
+
+.static-page .muted {
+  color: var(--ink-2);
+  font-size: var(--type-label-size);
 }
 
 .static-page a {
-  color: var(--aqua);
+  color: var(--su-mint);
+}
+
+/* The mint never touches the logo (brand rule): the wordmark stays ink, outranking the mint link rule above. */
+.static-page a.static-page-brand {
+  color: var(--su-ink);
 }
 
 .static-page .static-page-link {
   display: inline-block;
+  min-height: 44px;
   margin-top: 34px;
-  font-weight: 800;
+  font-weight: 700;
+}
+
+/* admin-crm-inventario §9.3 / plano-producao "O que bloqueia": owner data still pending go-live — loud on
+   purpose, greppable as [data-todo], never silently shipped as a stated fact. */
+.static-page [data-todo] {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(88, 246, 177, 0.14);
+  color: var(--su-mint);
+  font-style: normal;
 }

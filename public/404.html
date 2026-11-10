@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="robots" content="noindex" />
+    <!-- senior-review S5: GitHub Pages serves this file for any URL it cannot match (a stale link, a typo). Plain
+         HTML on purpose — no JS, no engine, no bundle: whatever broke to land someone here, this page does not
+         depend on it working. Colours duplicated from src/proto/proto.css :root (ground/ink/ink-2/mint), same
+         trade-off as StaticPage.css: a whole stylesheet import is not worth it for three colours. -->
+    <style>
+      /* juri-v58 item 3: the same two faces the landing declares for itself (index.html, app.html) — "Back to
+         the website" must not fall back to the browser's serif default. No metrics-adjusted fallback face (the
+         type-director's full set in src/proto/type.css): this page is meant to stay this minimal and self-contained. */
+      @font-face { font-family: "BU Display"; src: url(/fonts/bu-display.woff2) format("woff2"); font-weight: 300 400; font-stretch: 87.5%; font-display: swap; }
+      @font-face { font-family: "BU Text"; src: url(/fonts/bu-text.woff2) format("woff2"); font-weight: 400 500; font-stretch: 100%; font-display: swap; }
+      html, body { margin: 0; min-height: 100svh; background: #08070B; color: #F4F1F8; }
+      body { display: flex; align-items: center; justify-content: center; padding: 24px; font-family: "BU Text", system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center; }
+      main { max-width: 32rem; }
+      h1 { margin: 0 0 12px; font-family: "BU Display", system-ui, sans-serif; font-stretch: 87.5%; font-size: clamp(1.5rem, 5vw, 2.25rem); line-height: 1.15; }
+      p { margin: 0 0 28px; color: #B7B4BB; }
+      a { display: inline-block; min-height: 44px; line-height: 44px; color: #58F6B1; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+    </style>
+    <title>Page not found | BrandUp</title>
+  </head>
+  <body>
+    <main>
+      <h1>Page not found.</h1>
+      <p>This page does not exist, or the link is out of date.</p>
+      <a href="/">Back to the website</a>
+    </main>
+  </body>
+</html>

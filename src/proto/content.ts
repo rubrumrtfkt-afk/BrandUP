@@ -1,7 +1,8 @@
 // Copy v5.4 (docs/redesign/copy.md, section "v5.4": the long hero for businesses in general; variation B of the H1, the
 // owner's sentence, by the orchestrator's call 09/11) over v5.3/v5.2 (the office phrase stays as it is by the owner's call). Strings marked
-// MODELO are samples that must not ship without the owner's real data (copy §5). The four brief-v4.4 example strings
-// (night.count, night.aria, office.orderTag, faq.contact) were written by the copy-director in v5.3.
+// MODELO are samples that must not ship without the owner's real data (copy §5). Three brief-v4.4 example strings
+// (night.count, night.aria, office.orderTag) were written by the copy-director in v5.3; the fourth, faq.contact,
+// shipped a modelled email/phone and is gone (go-live content rule, src/App.tsx has no FAQ contact prompt either).
 export const COPY_VERSION = 'v5.4'
 
 export const hero = {
@@ -21,7 +22,9 @@ export const agents = ['Your follow-up', 'Your bookkeeper', 'Your ad manager', '
 
 export const form = {
   h2: ['One call.', 'Your plan.'],
-  lede: 'We’ll call within 5 minutes, business hours.',
+  // go-live content rule: aligned to the live site's own phrasing ("Within up to 5 minutes during business
+  // hours", src/App.tsx:462) and to form.success below, which already said "during business hours".
+  lede: 'We’ll call within 5 minutes during business hours.',
   privacy: 'Used only to reply.',
   privacyLink: 'Privacy policy.',
   button: 'Build my AI office',
@@ -150,7 +153,8 @@ export const days = {
 
 export const faq = {
   h2: 'Questions',
-  contact: 'Can’t see your question? Email or call us.', // copy v5.3: the verbs follow the links (email first, as in the FAQ markup)
+  // go-live content rule: the "6th question, answered by a human" (an email + phone line) is gone — the live
+  // site (src/App.tsx) has no FAQ contact prompt at all, and the email/phone here were modelled, never real.
   items: [
     ['Will the AI act without my approval?', 'Only where you allow it. You choose what runs on its own, like answering a common enquiry, and what waits for your yes, like a price or a payment reminder. Every action is logged.'],
     ['Is my data safe?', 'Your data is used only to run your agents and is never shared with other clients. Each agent reaches only the accounts you connect, and you can ask us to delete it.'],
@@ -160,6 +164,19 @@ export const faq = {
   ] as [string, string][],
 }
 
+// plano-producao §1 (SEO item 6): the FAQPage JSON-LD, generated from the same faq.items above (one source; a hand-
+// written copy would drift the moment a question changes). `</` is escaped so no answer could ever close the
+// <script> tag early; none of the current text contains it, this is only a standing guard.
+export const faqJsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faq.items.map(([question, answer]) => ({
+    '@type': 'Question',
+    name: question,
+    acceptedAnswer: { '@type': 'Answer', text: answer },
+  })),
+}).replace(/</g, '\\u003c')
+
 export const final = {
   h2: 'Want a team like this?',
   // brief-v4.3 §5.3: the sr-only line that names the six dots (copy v5.2)
@@ -167,12 +184,16 @@ export const final = {
 }
 
 export const footer = {
-  // MODELO contact data (copy §2.10): real data or nothing before launch.
-  email: 'hello@brandup.com.au', phone: '02 5550 1234', abn: 'ABN 12 345 678 901',
   note: 'Agent activity shown on this page is illustrative.',
   privacy: 'Privacy policy', copy: '© 2026 BrandUp',
   // brief-v4.2 §7, the live line (copy v5.1 §C); covered by the note above.
   live: (time: string) => `Sydney ${time} · agents on shift`,
+  // go-live content rule: the new site only publishes what the live site (src/App.tsx) already publishes. It has
+  // no email, phone or ABN anywhere — only these two real social links, with the same aria-label it already uses.
+  social: {
+    instagram: { label: 'Instagram', href: 'https://www.instagram.com/brandup.aus/', aria: 'Instagram BrandUp' },
+    facebook: { label: 'Facebook', href: 'https://www.facebook.com/profile.php?id=61591164172060', aria: 'Facebook BrandUp' },
+  },
   // the footer's columns (owner's request; labels copy v5.1 §C): every link points at something that exists on
   // this page or the site (no invented pages).
   cols: {

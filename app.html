@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      // plano-producao §1 / admin-crm-inventario §9.3 item 3: this shell serves /thank-you, /privacy and /admin/
+      // (vite.config.ts staticRoutes + the dev middleware). The Pixel fires on the public pages only: never on
+      // /admin/, by its own path or by the query/hash a direct dev hit can use (?admin=1, #/admin), and never on
+      // a Supabase invite or recovery link that carries a token (its token_hash/access_token would ride with it).
+      (function () {
+        var l = location, q = new URLSearchParams(l.search);
+        // senior-review S4: GitHub Pages also serves the literal file at /admin/index.html, not only /admin/ —
+        // normalize both away before comparing.
+        var p = l.pathname.replace(/\/index\.html$/i, '').replace(/\/+$/, '');
+        var onAdmin = p === '/admin' || q.get('admin') === '1' || l.hash.toLowerCase().indexOf('#/admin') === 0;
+        var auth = /[?&#]type=(invite|recovery)(?:&|$)/i.test(l.href) && (q.has('token_hash') || l.hash.indexOf('access_token=') !== -1);
+        if (onAdmin || auth || l.hostname !== 'brandupadvisory.com') return;
+        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+        n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+        document,'script','https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '1748885616199469');
+        fbq('track', 'PageView');
+      })();
+    </script>
+    <meta name="theme-color" content="#08070B" />
+    <meta name="color-scheme" content="dark" />
+    <!-- juri-v58 item 3: the body font declared here too (not just StaticPage.css, where "Back to the website"
+         already got it) — the same "BU Text" index.html declares, so there is no FOUC window between this
+         inline style painting and React mounting StaticPage.css where body text could show the browser's serif
+         default instead. -->
+    <style>@font-face{font-family:"BU Text";src:url(/fonts/bu-text.woff2) format("woff2");font-weight:400 500;font-stretch:100%;font-display:swap}html,body{background:#08070B;color:#F4F1F8;color-scheme:dark;font-family:"BU Text",system-ui,sans-serif}</style>
+    <title>BrandUp</title>
+    <meta name="description" content="BrandUp." />
+    <!--route-meta-->
+    <!--og-meta-->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

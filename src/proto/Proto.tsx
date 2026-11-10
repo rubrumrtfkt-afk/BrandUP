@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent, type ReactNode } from 'react'
 import { bus } from './bus'
-import { agents, days, faq, fields, final, footer, form, hero, night, office, revenue, you, type FieldKey } from './content'
+import { Logo } from './Logo'
+import { agents, days, faq, faqJsonLd, fields, final, footer, form, hero, night, office, revenue, you, type FieldKey } from './content'
 import { testimonials, testimonialsHead } from './testimonials'
 import { initDomScenes } from './domScenes'
 import { initTesti } from './testiScene'
@@ -12,9 +13,10 @@ import { POSTER_T, deskBoards, doneAt, initNightShift } from './nightShift'
 import { initOrla, type OrlaId } from './orla'
 import { NODES, YOU_HOLD, netFrame, netToScreen } from './layout'
 import { ticker } from './ticker'
-import { readAttribution } from '../lib/attribution'
+import { markLeadConfirmed, readAttribution } from '../lib/attribution'
 import { LEAD_FIELDS, LEAD_MAX_LENGTH, createLeadSubmitter, validateLeadField, type LeadSender } from '../lib/submitLead'
-import { createSimulatedSender, simulatedModeFrom } from '../lib/simulatedLeadSender'
+import { leadRestSender } from '../lib/leadRestSender'
+import { createLazySender } from '../lib/pickLeadSender'
 import officeDay1440 from './assets/office-day-1440.webp?url'
 import officeDayP780 from './assets/office-day-p780.webp?url'
 import posterHero1440 from './assets/poster-hero-1440.webp?url'
@@ -49,6 +51,8 @@ export function Proto() {
   useEffect(() => initNav(reduced), [])
   return (
     <>
+      {/* plano-producao §1 (SEO item 6): one source, src/proto/content.ts faq.items → faqJsonLd */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: faqJsonLd }} />
       <PatternDefs />
       <header className="bar">
         <a className="brand" href="#top" aria-label="BrandUp"><Logo /><span aria-hidden="true">BrandUp</span></a>
@@ -62,7 +66,7 @@ export function Proto() {
             <p className="lede" data-dark="16" data-in="voice-body">{form.lede}</p>
           </div>
           {/* v55e (owner: the dotted tray under the form read as a box and competed with the horizon): no orla here */}
-          <LeadForm id="diagnostic" success={form.successDiagnostic} />
+          <LeadForm id="diagnostic" headingId="form-h" success={form.successDiagnostic} />
           <div className="horizon" data-horizon="diagnostic" data-beam="96" aria-hidden="true" />
         </section>
         <Night />
@@ -90,7 +94,7 @@ export function Proto() {
               )
             })}
           </h2>
-          <LeadForm id="final-form" orla="final" compact />
+          <LeadForm id="final-form" headingId="final-h" orla="final" compact />
           <div className="horizon" data-horizon="final" data-beam="72" aria-hidden="true" />
         </section>
       </main>
@@ -118,24 +122,6 @@ function BtnBody({ children }: { children: ReactNode }) {
   )
 }
 
-function Logo() {
-  return (
-    // width/height in the markup (brief-v4.5 §4.5): before the stylesheet (dev injects it from JS) an SVG without them
-    // paints at the width of the screen: the giant purple triangle of the 1st frame of a reload
-    // v55 the intro builds it (proto.html): the triangle, then the word, then the arrow rises from under the base, clipped
-    // to the triangle (the clip never cuts the arrow at rest: it sits inside)
-    <svg className="logo" viewBox="0 0 40 40" width="36" height="36" aria-hidden="true">
-      <defs><clipPath id="logo-clip"><path d="M20 5 L35 33 L5 33 Z" /></clipPath></defs>
-      <path className="logo-tri" d="M20 5 L35 33 L5 33 Z" fill="#9232EA" stroke="#9232EA" strokeWidth="2" strokeLinejoin="round" />
-      <g clipPath="url(#logo-clip)">
-        <g className="logo-arw">
-          <path d="M20 13 L26 22 L14 22 Z" fill="#FFFFFF" />
-          <rect x="17.5" y="21" width="5" height="9" rx="2.5" fill="#FFFFFF" />
-        </g>
-      </g>
-    </svg>
-  )
-}
 /** Ordered-dot fills for the DOM pieces that show light without WebGL (fallback triangle). */
 function PatternDefs() {
   return (
@@ -232,20 +218,38 @@ function Hero() {
   )
 }
 
-// ---------- form: the lead contract lives in src/lib/submitLead.ts (pure, tested); the transport is injected.
-// The prototype uses the SIMULATED sender (nothing leaves the browser; ?send=fail / ?send=slow prove the error states) and
-// stays on the page with the confirmation. On the swap day: sender = supabaseLeadSender, onConfirmed = markLeadConfirmed,
-// and `sent` → location.assign('/thank-you') (plano-producao §2). Created on the first submit: the prerender has no window.
+// ---------- form: the lead contract lives in src/lib/submitLead.ts (pure, tested); which transport to use (and
+// whether it is the real one, for onConfirmed) is decided by src/lib/pickLeadSender.ts (also pure, also tested —
+// senior-review I1: this file cannot be loaded by the plain-module test harness, so the decision itself does not
+// live here). plano-producao §2: production sends for real (leadRestSender, a direct PostgREST fetch — no
+// supabase-js on the landing, senior-review I2) and `sent` → location.assign('/thank-you/'). The simulated sender
+// stays reachable in dev (no local .env; a real insert would just throw) or behind ?send= on anything that is
+// NOT brandupadvisory.com — never on the live site itself, whatever the query string says. Created on the first
+// submit: the prerender has no window.
 type Values = Record<FieldKey, string>
 type SendState = 'idle' | 'sending' | 'error' | 'sent'
 let submitter: ReturnType<typeof createLeadSubmitter> | null = null
-const leadSubmitter = () => (submitter ??= createLeadSubmitter({
-  sender: probed(createSimulatedSender(simulatedModeFrom(location.search))),
-  readAttribution,
-  // no onConfirmed: the simulated sender wrote nothing, so there is no conversion to count
-}))
-// lab probe (prototype only): each call that reaches the sender is announced with the row's KEYS, never its values, so
-// the browser checks can count submissions (double click = 1) and see the attribution keys travel
+let sender: ReturnType<typeof createLazySender> | null = null
+const leadSubmitter = () => {
+  if (!submitter) {
+    sender = createLazySender({
+      loadSimulated: async () => {
+        const sim = await import('../lib/simulatedLeadSender')
+        return sim.createSimulatedSender(sim.simulatedModeFrom(location.search))
+      },
+      real: leadRestSender,
+    })
+    submitter = createLeadSubmitter({
+      sender: probed(sender.send),
+      readAttribution,
+      // the simulated sender never actually sends anything: only a confirmed REAL send counts as a conversion
+      onConfirmed: (eventId) => { if (sender?.isReal()) markLeadConfirmed(eventId) },
+    })
+  }
+  return submitter
+}
+// lab probe: each call that reaches the sender is announced with the row's KEYS, never its values, so the
+// browser checks can count submissions (double click = 1) and see the attribution keys travel
 function probed(sender: LeadSender): LeadSender {
   return (row, signal) => {
     window.dispatchEvent(new CustomEvent('brandup:lead-send', { detail: { keys: Object.keys(row) } }))
@@ -259,7 +263,7 @@ function wakeAfterPaint() {
 // the light of the success: one beam per field converges on the button, then the button's arrow rises as the data
 const FX_BEAMS = LEAD_FIELDS.length
 
-function LeadForm({ id, orla, compact = false, success = form.success }: { id: string; orla?: OrlaId; compact?: boolean; success?: string }) {
+function LeadForm({ id, headingId, orla, compact = false, success = form.success }: { id: string; headingId: string; orla?: OrlaId; compact?: boolean; success?: string }) {
   const formRef = useRef<HTMLFormElement>(null)
   const orlaRef = useRef<HTMLCanvasElement>(null)
   const fxRef = useRef<HTMLDivElement>(null)
@@ -324,7 +328,18 @@ function LeadForm({ id, orla, compact = false, success = form.success }: { id: s
     // the engine draws only when asked: its halo around the button goes out with the arrow (.42 s; at once with reduced
     // motion), and once the button has faded (.6 + .28 s) the engine is woken again AFTER the commit and the style change
     // (2 frames), or its last frame keeps a light around nothing (juri-v56 §1)
-    const timers = [setTimeout(() => setActOff(true), reduced ? 0 : 420), setTimeout(wakeAfterPaint, reduced ? 0 : 900)]
+    // plano-producao §2: the success effect (juri-v57 approved it, §3 "Envio com efeito de sucesso") plays first,
+    // then the redirect — honeypot included, so a bot's "success" also leaves without ever reaching /thank-you's
+    // Pixel Lead (trackConfirmedLead fires only when markLeadConfirmed was called, which the honeypot path skips).
+    // juri-v58 item 2: the text's own entrance (proto.css `.lead[data-state="sent"] :is(.done-text, .done-note)`,
+    // `lead-in .32s … .86s`) only finishes fading in at .86 + .32 = 1.18 s after `sent` — the previous 1.15 s
+    // redirect fired BEFORE that, leaving ~0 ms legible. 1.18 s + 700 ms ≈ 1.88 s; reduced motion skips the
+    // animation entirely (text visible at 0 ms), so 700 ms on its own is enough there.
+    const timers = [
+      setTimeout(() => setActOff(true), reduced ? 0 : 420),
+      setTimeout(wakeAfterPaint, reduced ? 0 : 900),
+      setTimeout(() => location.assign('/thank-you/'), reduced ? 700 : 1880),
+    ]
     if (!f || reduced) return () => timers.forEach(clearTimeout)
     const box = f.getBoundingClientRect()
     const at = (el: Element | null | undefined) => {
@@ -365,7 +380,12 @@ function LeadForm({ id, orla, compact = false, success = form.success }: { id: s
   const sent = status === 'sent'
   return (
     <form id={id} ref={formRef} className={compact ? 'lead compact' : 'lead'} data-dark={compact ? '' : undefined} data-in="voice-control"
-      data-state={status} noValidate onSubmit={onSubmit}>
+      data-state={status} noValidate onSubmit={onSubmit}
+      // senior-review S6 (owner: Meta Ads mobile traffic, conversion first): on touch the landing focuses the
+      // form itself, not a field (that would throw the keyboard) and not the title (that cost the button its
+      // visibility on arrival). tabIndex=-1 + aria-labelledby give it exactly what a focused title had — a
+      // screen reader still announces the section's name — while the scroll lands low enough to show the button.
+      tabIndex={-1} aria-labelledby={headingId}>
       {orla && <canvas ref={orlaRef} className="orla" aria-hidden="true" />}
       {/* honeypot (App.tsx): off-screen, out of the tab order; a person never fills it */}
       <div className="hp" aria-hidden="true">
@@ -434,7 +454,9 @@ function LeadForm({ id, orla, compact = false, success = form.success }: { id: s
             <p className="done-text" data-dark={compact ? undefined : '12'}>
               {success.split(/(?<=\.)\s+/).map((line, i) => <span key={i} className="done-line">{i ? ' ' : ''}{line}</span>)}
             </p>
-            <p className="done-note">{form.protoNote}</p>
+            {/* plano-producao §2: "nothing was sent" stopped being true the moment the real sender shipped.
+                Kept for dev only (no local .env; the dev sender really is simulated), gone from the production build. */}
+            {import.meta.env.DEV && <p className="done-note">{form.protoNote}</p>}
           </>
         )}
       </div>
@@ -759,7 +781,6 @@ function Footer() {
           <ul>
             {c.company.links.map(([t, h]) => <li key={h}><a href={h}>{t}</a></li>)}
             <li className="foot-live">{time ? footer.live(time) : ''}</li>
-            <li className="foot-dim">{footer.abn}</li>
           </ul>
         </div>
         <div className="foot-col">
@@ -772,8 +793,10 @@ function Footer() {
         <div className="foot-col">
           <h3 className="foot-h">{c.contact.h}</h3>
           <ul>
-            <li><a href={`mailto:${footer.email}`}>{footer.email}</a></li>
-            <li><a href="tel:+61255501234">{footer.phone}</a></li>
+            {/* go-live content rule: the real social links the live site already publishes, text only (no
+                external icon CDN) — target+rel for an external link, aria-label matching the live site's own */}
+            <li><a href={footer.social.instagram.href} target="_blank" rel="noreferrer" aria-label={footer.social.instagram.aria}>{footer.social.instagram.label}</a></li>
+            <li><a href={footer.social.facebook.href} target="_blank" rel="noreferrer" aria-label={footer.social.facebook.aria}>{footer.social.facebook.label}</a></li>
           </ul>
         </div>
       </nav>
@@ -822,8 +845,6 @@ function Faq() {
     <section className="sec faq" data-scene="faq" aria-labelledby="faq-h">
       <div className="faq-head">
         <Lines id="faq-h" lines={[faq.h2]} />
-        {/* brief-v4.4 §7: the 6th question, answered by a human (the footer's contacts, real links, 44-px targets) */}
-        <p className="faq-contact" data-in="voice-body">{faq.contact} <a href={`mailto:${footer.email}`}>{footer.email}</a> <a href="tel:+61255501234">{footer.phone}</a></p>
       </div>
       <div className="faq-list" ref={listRef}>
         <canvas ref={orlaRef} className="orla" aria-hidden="true" />

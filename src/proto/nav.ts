@@ -5,7 +5,7 @@ import { scrollToY } from './smoothScroll'
  *  1. In-page anchors never write the hash. A plain click on `a[href^="#"]` glides to the target (smoothScroll.ts; a jump
  *     with reduced motion), moves the focus there and leaves the URL as it was, so F5 starts at the top. The hrefs stay
  *     real: without JS, with the middle button or "open in new tab" they are ordinary links.
- *  2. A link from OUTSIDE with a hash (`/proto.html#diagnostic` in an ad or an e-mail) skips the intro (proto.html, the
+ *  2. A link from OUTSIDE with a hash (`/#diagnostic` in an ad or an e-mail) skips the intro (index.html, the
  *     head script) and opens on the target with the header shown; the hash is then dropped from the URL, so a reload of
  *     that tab starts at the top with the short intro, like any reload.
  *  3. The header is fixed: shown at the top of the page, during the intro and above the fold; past the fold it hides
@@ -40,10 +40,27 @@ function resolve(id: string, barH: number): Landing | null {
     const fine = matchMedia('(hover: hover) and (pointer: fine)').matches
     const headId = scene?.getAttribute('aria-labelledby')
     const head = headId ? document.getElementById(headId) : null
-    // stacked (phone): the section's title and promise sit above the form; land on the title (the form follows below,
-    // its first fields on screen) so the focused title is not above the screen. Side by side (1440) both tops are equal.
+    // stacked (phone): the section's title and promise sit above the form; land there first (the form follows
+    // below). Side by side (1440) both tops are equal, so this is a no-op there.
     if (head && !el.contains(head)) y = Math.min(y, docTop(head) - off)
-    focus = fine ? el.querySelector<HTMLElement>('input:not([type="hidden"]):not([tabindex="-1"])') : head ?? el
+    const wantBottom = docTop(el) + el.offsetHeight - innerHeight
+    if (fine) {
+      // a mouse/trackpad visit: focus the first field (typing starts at once) and still try to show the button,
+      // but never past the point where the FOCUSED field itself would scroll off the top — a focus() on
+      // something invisible is the worse failure of the two.
+      focus = el.querySelector<HTMLElement>('input:not([type="hidden"]):not([tabindex="-1"])')
+      const focusCeiling = focus ? docTop(focus) - off : y
+      y = Math.max(y, Math.min(wantBottom, focusCeiling))
+    } else {
+      // juri-v57 §6 item 4 / senior-review S6 (owner: Meta Ads mobile traffic, conversion comes first — this
+      // must not regress): on touch the submit button's visibility on arrival wins outright, not just when it
+      // happens to fit. Focus goes to the FORM itself (Proto.tsx: tabIndex=-1, aria-labelledby=the section's
+      // title) rather than a field (that would throw the keyboard open) or the title (that was the thing giving
+      // up the button). The form spans the whole section, so it is on screen by construction at any y this
+      // picks, and a screen reader still announces the section's name on arrival.
+      focus = el
+      y = Math.max(y, wantBottom)
+    }
   }
   return { y: Math.max(0, Math.round(y)), focus }
 }
@@ -69,6 +86,13 @@ export function initNav(reduced: boolean) {
   let acc = 0
   let hidden = false
   let top: boolean | null = null
+  // juri-v57 §6 item 3: a glide that starts inside the hero (y < innerHeight, onScroll's own first branch forces the
+  // header shown and keeps resetting acc to 0) can cross that threshold in its last frame or two, landing in the
+  // normal accumulator with acc=0 and a large residual dy still to pay off: that one frame can cross HIDE_AFTER on
+  // its own, hiding the header for a few frames right before `arrive()`'s show() fixes it. `gliding` suppresses the
+  // accumulator for the whole glide instead (the header was never meant to react to our own scroll, only the
+  // person's): visible for its entire run, same as the first-screen case already was.
+  let gliding = false
   const setHidden = (h: boolean) => { if (h !== hidden) { hidden = h; bar.dataset.hidden = String(h) } }
   const setTop = (t: boolean) => { if (t !== top) { top = t; bar.dataset.top = String(t) } }
   const quiet = Array.from(document.querySelectorAll<HTMLElement>('[data-scene="office"]'))
@@ -82,6 +106,7 @@ export function initNav(reduced: boolean) {
     const dy = y - lastY
     lastY = y
     setTop(y < 8)
+    if (gliding) { acc = 0; setHidden(inQuiet()); return }
     if (y < innerHeight || root.classList.contains('intro')) { acc = 0; setHidden(false); return }
     if (inQuiet()) { acc = 0; setHidden(true); return }
     if (dy === 0) return
@@ -103,8 +128,11 @@ export function initNav(reduced: boolean) {
 
   // ---- anchors
   const land = (t: Landing, glide: boolean) => {
-    const arrive = () => { focusOn(t.focus); show() }
-    if (glide && !reduced) scrollToY(t.y, arrive)
+    const arrive = () => { gliding = false; focusOn(t.focus); show() }
+    // senior-review: smoothScroll.ts now tells us directly when the person interrupted the glide (a wheel, a
+    // key, a touch, a dragged scrollbar, the browser's own find-in-page jump — anything), instead of this file
+    // mirroring a handful of events that never covered the scrollbar or find-in-page in the first place.
+    if (glide && !reduced) { gliding = true; scrollToY(t.y, arrive, () => { gliding = false }) }
     else { scrollTo(0, t.y); arrive() }
   }
   const onClick = (e: MouseEvent) => {

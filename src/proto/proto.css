@@ -575,7 +575,9 @@ html:not(.intro) .intro-skipbtn { display: none; }
 .reduced .bar, .reduced .bar::before { transition: none; }
 @media (prefers-reduced-motion: reduce) { .bar, .bar::before { transition: none; } }
 /* a heading that takes the focus from an anchor (tabindex -1, nav.ts) is not a control: no ring around a 7-word title */
-:is(h1, h2)[tabindex="-1"]:focus { outline: none; }
+/* senior-review S6: the lead forms land their touch focus on the <form> itself (tabIndex=-1, Proto.tsx) — same
+   rule as the headings below, so a programmatic focus there never shows the ring either. */
+:is(h1, h2, form)[tabindex="-1"]:focus { outline: none; }
 .brand { gap: 12px; min-height: 44px; font-size: 22px; }
 .brand svg { width: 36px; height: 36px; } /* v54 (owner: the header logo bigger): 36 px at 1440 (was 28) */
 .bar-link { color: var(--mint); text-decoration-line: underline; text-decoration-color: rgb(88 246 177 / .45); text-decoration-thickness: 1.5px; }

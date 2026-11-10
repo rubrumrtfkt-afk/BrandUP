@@ -8,6 +8,10 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
+// plano-producao §1: main.tsx no longer imports index.css globally (the landing never needed it); AdminPage.css
+// and LeadBoard.css still read its tokens (--aqua, --text-muted, --line, --accent, --text, --bg,
+// admin-crm-inventario §3.2), so this is the one page that imports it now.
+import './index.css'
 import './AdminPage.css'
 
 import LeadBoard from './LeadBoard'
@@ -62,6 +66,8 @@ function AdminPage() {
     setIsAuthorized(true)
     setIsCheckingAccess(false)
 
+    // Not N+1: one cursor-paginated catch-up load (Supabase's own 1000-row page cap), not a query per row.
+    // Pre-existing (admin-crm-inventario §4.2); out of scope for this swap, which only touches the shell and routing.
     const items: Lead[] = []
     for (let offset = 0; ; offset += 1000) {
       const { data, error } = await supabase.from('leads')
@@ -124,7 +130,9 @@ function AdminPage() {
 
     return () => {
       subscription.unsubscribe()
-      document.title = 'BrandUp | Restaurant Marketing Australia'
+      // admin-crm-inventario §9.3 item 9: this used to restore the old site's restaurant-era title; /admin/ is
+      // its own page now (app.html), so the only sane "other" title to restore is the page's own.
+      document.title = 'Lead Dashboard | BrandUp'
     }
   }, [])
 
@@ -222,7 +230,9 @@ function AdminPage() {
     }
 
     sessionStorage.removeItem('brandup-password-setup')
-    window.history.replaceState({}, '', '/?admin=1')
+    // plano-producao §1: the admin now lives at its own route; a bare "/?admin=1" would hit the landing's
+    // diversion script again on the next load, which already sends it here, but this keeps the address bar honest.
+    window.history.replaceState({}, '', '/admin/?admin=1')
     setRequiresPasswordSetup(false)
     setIsSettingPassword(false)
     await loadDashboard(data.user.id, data.user.email ?? null)

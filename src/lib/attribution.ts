@@ -8,6 +8,18 @@ export type Attribution = Partial<Record<(typeof PARAMS)[number] | 'landing_page
 // Accept the demo's short labels too; they never verify identity or qualification.
 const aliases: Record<string, string> = { utm_source: 's', utm_campaign: 'c', utm_content: 'm', offer: 'o', placement: 'p', partner: 'k' }
 const sources: Record<string, string> = { meta: 'facebook', ig: 'instagram', fb: 'facebook', wa: 'whatsapp', qr: 'qr', ref: 'referral' }
+// senior-review I3: a Supabase invite/recovery link should never reach the landing at all (index.html's own
+// diversion script sends it to /admin/ first), but this is a second, independent guard: even if one did, its
+// token never rides into the stored attribution. (access_token/refresh_token travel in the URL hash, which
+// landing_page below never included anyway; token_hash/type/code are query params and are the ones this strips.)
+const SENSITIVE_PARAMS = ['token_hash', 'access_token', 'refresh_token', 'type', 'code']
+
+function sanitizedLandingPage(): string {
+  const params = new URLSearchParams(window.location.search)
+  for (const key of SENSITIVE_PARAMS) params.delete(key)
+  const search = params.toString()
+  return `${window.location.pathname}${search ? `?${search}` : ''}`.slice(0, 500)
+}
 
 export function captureAttribution() {
   try {
@@ -21,7 +33,7 @@ export function captureAttribution() {
     if (params.get('s') === 'meta' && !click.utm_medium) click.utm_medium = 'paid'
     if (!Object.keys(click).length && (Object.keys(readAttribution()).length || /^\/(thank-you|privacy)\/?$/.test(window.location.pathname))) return
     const attribution: Attribution = { ...click,
-      landing_page: `${window.location.pathname}${window.location.search}`.slice(0, 500),
+      landing_page: sanitizedLandingPage(),
       referrer: document.referrer.slice(0, 500) || undefined }
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ at: Date.now(), attribution }))
   } catch { /* The enquiry still works when browser storage is blocked. */ }

@@ -1,7 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-import vm from 'node:vm'
 import ts from 'typescript'
 
 // Load the actual pure application modules without adding test dependencies.
@@ -54,6 +53,22 @@ test('Expired, corrupt and unknown browser values are not submitted', () => {
 test('Direct visits to privacy and thank-you do not replace the landing page', () => {
   browser('', '/thank-you'); attribution.captureAttribution(); assert.deepEqual(attribution.readAttribution(), {})
 })
+test('A Supabase auth token never ends up stored in landing_page (senior-review I3)', () => {
+  // index.html's own script should have diverted this to /admin/ first; this is the second, independent guard.
+  browser('?token_hash=abc123&type=invite')
+  attribution.captureAttribution()
+  const stored = attribution.readAttribution()
+  assert.equal(stored.landing_page, '/')
+  for (const leaked of ['token_hash', 'access_token', 'refresh_token', 'type', 'code', 'abc123', 'invite'])
+    assert.equal(stored.landing_page.includes(leaked), false, leaked)
+})
+test('A token travelling alongside real UTMs is stripped, the UTMs are kept', () => {
+  browser('?utm_source=facebook&utm_campaign=nov&code=xyz&type=recovery')
+  attribution.captureAttribution()
+  const stored = attribution.readAttribution()
+  assert.equal(stored.utm_campaign, 'nov')
+  assert.equal(stored.landing_page, '/?utm_source=facebook&utm_campaign=nov')
+})
 test('Direct visits and reloads do not create a Lead; confirmation fires once', () => {
   browser(); const calls = []; window.fbq = (...args) => calls.push(args)
   attribution.trackConfirmedLead(); assert.equal(calls.length, 0)
@@ -70,16 +85,8 @@ test('Blocked browser storage does not throw', () => {
   globalThis.sessionStorage = { getItem: blocked, setItem: blocked }
   assert.doesNotThrow(() => { attribution.captureAttribution(); attribution.readAttribution(); attribution.markLeadConfirmed('test'); attribution.trackConfirmedLead() })
 })
-test('Pixel runs only on production public routes, never on admin or Supabase auth links', () => {
-  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')
-  const code = html.match(/<script>([\s\S]*?)<\/script>/)[1]
-  for (const [hostname, search, hash, expected] of [['localhost', '', '', false], ['brandupadvisory.com', '?admin=1', '', false], ['brandupadvisory.com', '?%61dmin=1', '', false], ['brandupadvisory.com', '', '#/admin', false], ['brandupadvisory.com', '?token_hash=abc&type=invite', '', false], ['brandupadvisory.com', '?type=recovery&token_hash=abc', '', false], ['brandupadvisory.com', '', '#access_token=abc&type=recovery', false], ['brandupadvisory.com', '?utm_source=facebook&type=a', '', true], ['brandupadvisory.com', '', '', true]]) {
-    const calls = []; const context = { location: { hostname, search, hash }, URLSearchParams, window: { fbq: () => {} }, document: {}, fbq: (...args) => calls.push(args) }
-    vm.runInNewContext(code, context)
-    assert.equal(calls.length > 0, expected)
-    assert.equal(calls.some(args => args[1] === 'Lead'), false)
-  }
-})
+// plano-producao §1 split index.html into two shells (landing + app.html); the Pixel guard of each, including the
+// admin diversion, is covered in tests/landing.test.mjs (admin-crm-inventario §9.3 item 4).
 test('Generated links round-trip special characters, fields and Meta macros', () => {
   const fields = { source: 'facebook', medium: 'paid', campaign: '{{campaign.name}}', content: 'A & B', term: '{{adset.name}}', offer: 'Review', placement: 'stories', partner: 'Café AU' }
   const url = board.buildTrackedLink(fields, 'link-id')

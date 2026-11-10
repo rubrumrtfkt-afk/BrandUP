@@ -1,0 +1,8 @@
+# senior-review S7: /admin/ and /thank-you/ are kept crawlable on purpose. Each already ships <meta
+# name="robots" content="noindex"> (vite.config.ts ROUTES); a Disallow here would stop a crawler from ever
+# fetching the page to see that tag, which is the one thing that actually keeps a URL out of the index. Disallow
+# and noindex fighting each other is the opposite of what either is for.
+User-agent: *
+Allow: /
+
+Sitemap: https://brandupadvisory.com/sitemap.xml

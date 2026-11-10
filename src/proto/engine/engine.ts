@@ -42,9 +42,21 @@ const approach = (cur: number, target: number, k: number, dt: number) => cur + (
 const easeOut = (t: number) => 1 - Math.pow(1 - clamp01(t), 2)
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
 
+// juri-v57 §6 item 2: one in three mobile runs saw a ~0.6 s long task at boot (shader compile + the geometry's
+// buffers), all in the same JS task as the dynamic import's `.then()`. Four yields (one per shader program, one
+// before the geometry upload) split it into pieces a scheduler can interleave with input; `scheduler.yield()`
+// (Chrome 115+) is a real priority yield, `setTimeout` the fallback elsewhere. This never touches the intro: the
+// intro is CSS/SVG from proto.html and only waits on `window.__bu`, which tolerates the engine being late (it
+// already ran up to ~0.6 s behind before this change) by showing the logo's ghost at 700 ms (proto.html, `arrive`).
+function yieldToMain(): Promise<void> {
+  const s = (globalThis as unknown as { scheduler?: { yield?: () => Promise<void> } }).scheduler
+  return s?.yield ? s.yield() : new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 /** Starts the one WebGL2 renderer of the page. Returns a dispose function, or null when WebGL2 is not
- *  available (the caller keeps the posters). */
-export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {}): (() => void) | null {
+ *  available (the caller keeps the posters). Async only to yield between the setup's heavy steps (above);
+ *  every GL object still exists before the first `frame` runs, same as the old synchronous version. */
+export async function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {}): Promise<(() => void) | null> {
   const portrait0 = isPortrait(innerWidth)
   const dpr = Math.min(devicePixelRatio || 1, portrait0 ? 1.5 : 2)
   // v4.5: alpha so the unlit ground is the textured CSS ground (proto.css body::before/after), the same before the
@@ -79,6 +91,8 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
     },
   })
   pointProgram.setBlendFunc(gl.ONE, gl.ONE)
+  await yieldToMain()
+  if (gl.isContextLost()) return null
 
   const fieldProgram = new Program(gl, {
     vertex: QUAD_VS, fragment: FIELD_FS, depthTest: false, depthWrite: false,
@@ -94,6 +108,8 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
   })
   const quad = new Triangle(gl)
   const fieldMesh = new Mesh(gl, { geometry: quad, program: fieldProgram })
+  await yieldToMain()
+  if (gl.isContextLost()) return null
 
   const blank = () => new Texture(gl, { generateMipmaps: false })
   let tNight = blank(), tDay = blank()
@@ -107,6 +123,8 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
     },
   })
   const compMesh = new Mesh(gl, { geometry: quad, program: compProgram })
+  await yieldToMain()
+  if (gl.isContextLost()) return null
 
   let events: ReturnType<typeof buildPoints>['events'] = []
   function buildGeometry() {
@@ -217,8 +235,9 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
     }
     if (probe) (window as Window & { __loop?: unknown }).__loop = { uploads, pending: pending.size, v: videos.map((v) => [v.which, +v.el.currentTime.toFixed(2), v.el.readyState, v.el.paused, v.el.currentSrc.split('/').pop()]) }
   }
+  // senior-review S1(a): every addEventListener of this function is registered together, after the last yield
+  // (below) — never orphaned by an early `return null` on a context lost mid-setup.
   const onHidden = () => { if (document.hidden) playLoops(false) }
-  document.addEventListener('visibilitychange', onHidden)
 
   function dropOffice() {
     officeGen++
@@ -263,15 +282,12 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
   // the pointer, for the form's field of points (owner 09/11 item 4); touch drifts instead of hovering
   const ptr = { x: -999, y: -999, tx: -999, ty: -999, s: 0, at: -1e9 }
   const onPtr = (e: PointerEvent) => { lastInput = performance.now(); ptr.tx = e.clientX; ptr.ty = e.clientY; ptr.at = performance.now(); if (ptr.x < -900) { ptr.x = ptr.tx; ptr.y = ptr.ty } ticker.wake() }
-  addEventListener('pointermove', onPtr, { passive: true })
   const t0 = performance.now()
   // brief-v4.3 §9.1: the last input that moves the page (the loop sleeps 1.5 s after it). Dev / ?probe expose the
   // count of frames drawn as window.__frames (the rest probe counts it with the page still).
   let lastInput = t0
   const counting = import.meta.env.DEV || new URLSearchParams(location.search).has('probe')
   const onInput = () => { lastInput = performance.now() }
-  addEventListener('scroll', onInput, { passive: true })
-  addEventListener('resize', onInput)
   const m = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--m')) || 20
   let margin = 20
 
@@ -283,7 +299,6 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
   type Intro = { m: number | null; d: number; late?: boolean; box?: [number, number, number] }
   const intro = () => (window as Window & { __bu?: Intro }).__bu
   const onIntro = () => ticker.wake()
-  addEventListener('bu-morph', onIntro)
   let introBox: [number, number, number] | null = null
   let hzShow = 0, hzKey = '', hzLast: number[] | null = null
 
@@ -919,9 +934,22 @@ export function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions = {})
     officeState = 'none'; officeGen++
     resize(); started = false; ticker.add(frame)
   }
+  const onResize = () => resize()
+
+  // the last and heaviest step: buildGeometry() (layout.ts buildPoints, a GL buffer upload)
+  await yieldToMain()
+  if (gl.isContextLost()) return null
+
+  // senior-review S1(a): every listener this function owns, registered together, only now — after every yield
+  // above has had its `isContextLost()` bail-out. An earlier `return null` (lost context mid-setup) therefore
+  // never leaves one of these attached with nothing to clean it up.
+  document.addEventListener('visibilitychange', onHidden)
+  addEventListener('pointermove', onPtr, { passive: true })
+  addEventListener('scroll', onInput, { passive: true })
+  addEventListener('resize', onInput)
+  addEventListener('bu-morph', onIntro)
   canvas.addEventListener('webglcontextlost', onLost)
   canvas.addEventListener('webglcontextrestored', onRestored, { once: true })
-  const onResize = () => resize()
   addEventListener('resize', onResize)
 
   resize()

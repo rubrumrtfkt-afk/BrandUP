@@ -12,6 +12,8 @@ const lead = await load(new URL('../src/lib/submitLead.ts', import.meta.url))
 const sim = await load(new URL('../src/lib/simulatedLeadSender.ts', import.meta.url))
 const board = await load(new URL('../src/lib/leadboard.ts', import.meta.url))
 const content = await load(new URL('../src/proto/content.ts', import.meta.url))
+const rest = await load(new URL('../src/lib/leadRestSender.ts', import.meta.url))
+const pick = await load(new URL('../src/lib/pickLeadSender.ts', import.meta.url))
 
 const input = { name: '  Jane Smith ', company: ' Acme Pty Ltd ', email: '  Jane@Company.COM.au ', phone: '0412 345 678', revenue: 'AUD 30k to AUD 80k', website: '' }
 const attribution = { utm_source: 'facebook', utm_medium: 'paid', utm_campaign: 'nov', link_id: 'abc', landing_page: '/?s=meta', referrer: 'https://www.instagram.com/' }
@@ -149,10 +151,134 @@ test('maxLength matches the CHECKs of public.leads', () => {
     assert.match(migration, new RegExp(`char_length\\(trim\\(${field}\\)\\) between \\d+ and ${max}\\b`), field)
 })
 
-test('The real sender inserts without .select() and loads Supabase lazily', () => {
-  const source = fs.readFileSync(new URL('../src/lib/supabaseLeadSender.ts', import.meta.url), 'utf8')
+// senior-review I2: leadRestSender.ts, a direct fetch to PostgREST, exercised against a fake global `fetch`.
+// `t.after` always restores the real globalThis.fetch — without it a failed assertion mid-test (or a changed
+// run order) leaves the fake installed for every test that runs after it.
+function fakeFetch(t, calls, impl) {
+  const real = globalThis.fetch
+  t.after(() => { globalThis.fetch = real })
+  globalThis.fetch = async (url, init) => { calls.push({ url, init }); return impl(url, init) }
+}
+const jsonResponse = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body })
+// a response with no JSON body at all: response.json() REJECTS (a real SyntaxError, "Unexpected end of JSON
+// input"), which is what actually exercises leadRestSender's `.catch(() => undefined)` — jsonResponse(status,
+// null) resolves fine and never did.
+const noJsonBodyResponse = (status) => ({ ok: status >= 200 && status < 300, status, json: async () => { throw new SyntaxError('Unexpected end of JSON input') } })
+
+test('The real sender POSTs to <url>/rest/v1/leads with apikey + Bearer + return=minimal, no .select()', async (t) => {
+  const calls = []
+  fakeFetch(t, calls, () => jsonResponse(201, null))
+  const send = rest.createLeadRestSender({ url: 'https://fake.supabase.test', key: 'anon-key-123' })
+  const row = { id: 'x', name: 'Jane', source: 'brandupadvisory.com', status: 'new' }
+  const out = await send(row, new AbortController().signal)
+  assert.deepEqual(out, { ok: true })
+  assert.equal(calls.length, 1)
+  // leadRestSender passes a URL object to fetch (new URL(path, base) normalises a trailing slash/whitespace in
+  // the configured base), not a template string — compare its string form.
+  assert.equal(String(calls[0].url), 'https://fake.supabase.test/rest/v1/leads')
+  assert.equal(calls[0].init.method, 'POST')
+  assert.equal(calls[0].init.headers.apikey, 'anon-key-123')
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer anon-key-123')
+  assert.equal(calls[0].init.headers.Prefer, 'return=minimal')
+  assert.equal(calls[0].init.headers['Content-Type'], 'application/json')
+  assert.deepEqual(JSON.parse(calls[0].init.body), row)
+  assert.equal('select' in calls[0].init, false)
+})
+
+test('A 409 (23505, a resend) and a 400 (a CHECK) both come back as { ok:false, code }', async (t) => {
+  const real = globalThis.fetch
+  t.after(() => { globalThis.fetch = real })
+  const send = rest.createLeadRestSender({ url: 'https://fake.supabase.test', key: 'k' })
+  globalThis.fetch = async () => jsonResponse(409, { code: '23505', message: 'duplicate key' })
+  assert.deepEqual(await send({}, new AbortController().signal), { ok: false, code: '23505' })
+  globalThis.fetch = async () => jsonResponse(400, { code: '23514', message: 'check violation' })
+  assert.deepEqual(await send({}, new AbortController().signal), { ok: false, code: '23514' })
+  // no JSON body at all: response.json() throws, falls back to the HTTP status via the sender's .catch()
+  globalThis.fetch = async () => noJsonBodyResponse(500)
+  assert.deepEqual(await send({}, new AbortController().signal), { ok: false, code: '500' })
+})
+
+test('A rejected fetch (network/DNS/CORS) and an aborted signal both throw, never resolve', async (t) => {
+  const real = globalThis.fetch
+  t.after(() => { globalThis.fetch = real })
+  const send = rest.createLeadRestSender({ url: 'https://fake.supabase.test', key: 'k' })
+  globalThis.fetch = async () => { throw new TypeError('Failed to fetch') }
+  await assert.rejects(() => send({}, new AbortController().signal), TypeError)
+  const controller = new AbortController()
+  globalThis.fetch = async (_url, init) => new Promise((_resolve, reject) => {
+    init.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+  })
+  const pending = send({}, controller.signal)
+  controller.abort()
+  await assert.rejects(() => pending, (e) => e.name === 'AbortError')
+})
+
+test('Missing env vars throw only when the sender is actually used, not at import', () => {
+  assert.throws(() => rest.createLeadRestSender({ url: '', key: '' }), /not configured/)
+})
+
+// senior-review I1: production host + ?send= still gets the REAL sender; onConfirmed-worthiness (isReal) follows.
+test('?send= on the production host is ignored: the real sender is used, isReal() is true', async () => {
+  const calls = []
+  const picked = pick.createLazySender({
+    env: { dev: false, hostname: 'brandupadvisory.com', search: '?send=fail' },
+    loadSimulated: async () => { calls.push('simulated-loaded'); return async () => ({ ok: true }) },
+    real: async () => ({ ok: true }),
+  })
+  assert.equal(picked.isReal(), null) // not resolved yet: nothing has sent
+  const out = await picked.send({}, new AbortController().signal)
+  assert.deepEqual(out, { ok: true })
+  assert.equal(picked.isReal(), true)
+  assert.equal(calls.length, 0) // the simulated sender's loader was never even reached
+})
+
+test('?send= on a whitelisted local host (localhost, 127.0.0.1, [::1]), and dev regardless of host, get the simulated sender; isReal() is false', async () => {
+  for (const env of [
+    { dev: false, hostname: 'localhost', search: '?send=ok' },
+    { dev: false, hostname: '127.0.0.1', search: '?send=fail' },
+    { dev: false, hostname: '[::1]', search: '?send=slow' },
+    { dev: true, hostname: 'brandupadvisory.com', search: '' },
+  ]) {
+    const picked = pick.createLazySender({ env, loadSimulated: async () => async () => ({ ok: true }), real: async () => ({ ok: true }) })
+    await picked.send({}, new AbortController().signal)
+    assert.equal(picked.isReal(), false, JSON.stringify(env))
+  }
+})
+
+test('senior-review: a whitelist, not a blacklist — ?send= on ANY non-local host (not just brandupadvisory.com) always uses the real sender', async () => {
+  for (const hostname of ['staging.example.com', 'brandupadvisory.com.evil.test', '0.0.0.0', 'brandupadvisory.com']) {
+    const picked = pick.createLazySender({ env: { dev: false, hostname, search: '?send=fail' }, loadSimulated: async () => async () => ({ ok: true }), real: async () => ({ ok: true }) })
+    await picked.send({}, new AbortController().signal)
+    assert.equal(picked.isReal(), true, hostname)
+  }
+})
+
+test('Without ?send= and outside dev, the real sender is used regardless of host', async () => {
+  const picked = pick.createLazySender({ env: { dev: false, hostname: 'localhost', search: '' }, loadSimulated: async () => async () => ({ ok: true }), real: async () => ({ ok: true }) })
+  await picked.send({}, new AbortController().signal)
+  assert.equal(picked.isReal(), true)
+})
+
+test('The FAQ JSON-LD is generated from content.ts, not hand-duplicated (plano-producao §1, SEO item 6)', () => {
+  assert.match(content.faqJsonLd, /"@type":"FAQPage"/)
+  const parsed = JSON.parse(content.faqJsonLd.replace(/\\u003c/g, '<'))
+  assert.equal(parsed.mainEntity.length, content.faq.items.length)
+  content.faq.items.forEach(([question, answer], i) => {
+    assert.equal(parsed.mainEntity[i].name, question)
+    assert.equal(parsed.mainEntity[i].acceptedAnswer.text, answer)
+  })
+})
+
+// senior-review I1: the actual pick/isReal BEHAVIOUR is tested above, against pickLeadSender.ts directly — Proto.tsx
+// itself cannot be loaded by this harness (React, the WebGL engine, `?url` asset imports). This is only a thin
+// wiring guard: Proto.tsx must delegate to that tested module, not reimplement the decision inline.
+test('Proto.tsx wires the tested sender-picking module, and never statically imports the simulated one', () => {
+  const source = fs.readFileSync(new URL('../src/proto/Proto.tsx', import.meta.url), 'utf8')
   const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')
-  assert.equal(code.includes('.select('), false)
-  assert.match(code, /await import\('\.\/supabase'\)/)
-  assert.equal(/^import .*['"]\.\/supabase['"]/m.test(code), false)
+  assert.match(code, /import \{ createLazySender \} from '\.\.\/lib\/pickLeadSender'/)
+  assert.match(code, /import \{ leadRestSender \} from '\.\.\/lib\/leadRestSender'/)
+  assert.match(code, /await import\('\.\.\/lib\/simulatedLeadSender'\)/)
+  assert.equal(/^import .*['"]\.\.\/lib\/simulatedLeadSender['"]/m.test(code), false)
+  // onConfirmed must check isReal(), not fire unconditionally
+  assert.match(code, /onConfirmed:\s*\(eventId\)\s*=>\s*\{\s*if\s*\(sender\?\.isReal\(\)\)/)
 })
