@@ -70,10 +70,10 @@ test('Blocked browser storage does not throw', () => {
   globalThis.sessionStorage = { getItem: blocked, setItem: blocked }
   assert.doesNotThrow(() => { attribution.captureAttribution(); attribution.readAttribution(); attribution.markLeadConfirmed('test'); attribution.trackConfirmedLead() })
 })
-test('Pixel runs only on production public routes, including encoded admin URLs', () => {
+test('Pixel runs only on production public routes, never on admin or Supabase auth links', () => {
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')
   const code = html.match(/<script>([\s\S]*?)<\/script>/)[1]
-  for (const [hostname, search, hash, expected] of [['localhost', '', '', false], ['brandupadvisory.com', '?admin=1', '', false], ['brandupadvisory.com', '?%61dmin=1', '', false], ['brandupadvisory.com', '', '#/admin', false], ['brandupadvisory.com', '', '', true]]) {
+  for (const [hostname, search, hash, expected] of [['localhost', '', '', false], ['brandupadvisory.com', '?admin=1', '', false], ['brandupadvisory.com', '?%61dmin=1', '', false], ['brandupadvisory.com', '', '#/admin', false], ['brandupadvisory.com', '?token_hash=abc&type=invite', '', false], ['brandupadvisory.com', '?type=recovery&token_hash=abc', '', false], ['brandupadvisory.com', '', '#access_token=abc&type=recovery', false], ['brandupadvisory.com', '?utm_source=facebook&type=a', '', true], ['brandupadvisory.com', '', '', true]]) {
     const calls = []; const context = { location: { hostname, search, hash }, URLSearchParams, window: { fbq: () => {} }, document: {}, fbq: (...args) => calls.push(args) }
     vm.runInNewContext(code, context)
     assert.equal(calls.length > 0, expected)
