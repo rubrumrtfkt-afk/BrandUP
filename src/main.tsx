@@ -6,18 +6,22 @@ import AdminPage from './AdminPage.tsx'
 import Privacy from './Privacy.tsx'
 import ThankYou from './ThankYou.tsx'
 import { captureAttribution } from './lib/attribution'
+import { detectPasswordLink, hasAuthLinkError, storePasswordSetup } from './lib/passwordLink'
 
 const url = new URL(window.location.href)
+const passwordLinkType = detectPasswordLink(window.location.href)
+
+if (passwordLinkType) {
+  storePasswordSetup(sessionStorage, passwordLinkType)
+}
+
+// Invite and reset links (and their expired-link redirects) open the admin page even if
+// Supabase falls back to the site root, so their tokens never reach captureAttribution.
 const isAdminRoute =
   url.searchParams.get('admin') === '1' ||
-  window.location.hash.toLowerCase().startsWith('#/admin')
-
-if (
-  /[?&#]type=(invite|recovery)(?:&|$)/i.test(window.location.href) &&
-  (url.searchParams.has('token_hash') || window.location.hash.includes('access_token='))
-) {
-  sessionStorage.setItem('brandup-password-setup', '1')
-}
+  window.location.hash.toLowerCase().startsWith('#/admin') ||
+  passwordLinkType !== null ||
+  hasAuthLinkError(window.location.href)
 
 const path = window.location.pathname.replace(/\/+$/, '')
 
