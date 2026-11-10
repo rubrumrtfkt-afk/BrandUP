@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 // v55: type.css and proto.css are linked from proto.html (render-blocking in dev too: no unstyled first frame)
 import { Proto } from './Proto'
+import { captureAttribution } from '../lib/attribution'
 
 const params = new URLSearchParams(location.search)
 const root = document.documentElement
@@ -11,6 +12,9 @@ const nav = navigator as Navigator & { connection?: NetInfo; deviceMemory?: numb
 const lowEnd = nav.connection?.saveData === true || (nav.deviceMemory !== undefined && nav.deviceMemory <= 2)
 if (reduced) root.classList.add('reduced')
 if (params.has('poster')) root.classList.add('poster-mode')
+// admin-crm-inventario §9.2 item 1: the landing records where the visit came from (UTMs, link_id of the tracked links and
+// QRs) before anything else; the lead reads it back on submit. This page is never the admin route.
+captureAttribution()
 
 // The HTML is prerendered at build/dev time (brief-v4.1 §8 item 8: readable without JS). The client
 // renders over it with createRoot rather than hydrating: the client tree depends on the viewport and on

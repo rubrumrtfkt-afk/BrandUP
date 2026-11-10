@@ -11,6 +11,9 @@ import { POSTER_T, deskBoards, doneAt, initNightShift } from './nightShift'
 import { initOrla, type OrlaId } from './orla'
 import { NODES, YOU_HOLD, netFrame, netToScreen } from './layout'
 import { ticker } from './ticker'
+import { readAttribution } from '../lib/attribution'
+import { LEAD_FIELDS, LEAD_MAX_LENGTH, createLeadSubmitter, validateLeadField, type LeadSender } from '../lib/submitLead'
+import { createSimulatedSender, simulatedModeFrom } from '../lib/simulatedLeadSender'
 import officeDay1440 from './assets/office-day-1440.webp?url'
 import officeDayP780 from './assets/office-day-p780.webp?url'
 import posterHero1440 from './assets/poster-hero-1440.webp?url'
@@ -225,26 +228,35 @@ function Hero() {
   )
 }
 
-// ---------- form (visual only this round: nothing is sent, no Supabase import)
+// ---------- form: the lead contract lives in src/lib/submitLead.ts (pure, tested); the transport is injected.
+// The prototype uses the SIMULATED sender (nothing leaves the browser; ?send=fail / ?send=slow prove the error states) and
+// stays on the page with the confirmation. On the swap day: sender = supabaseLeadSender, onConfirmed = markLeadConfirmed,
+// and `sent` → location.assign('/thank-you') (plano-producao §2). Created on the first submit: the prerender has no window.
 type Values = Record<FieldKey, string>
-const validate = (k: FieldKey, v: string): 'empty' | 'invalid' | null => {
-  const t = v.trim()
-  if (!t) return 'empty'
-  if (k === 'name' || k === 'company') return t.length >= 2 ? null : 'invalid'
-  if (k === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t) ? null : 'invalid'
-  if (k === 'phone') {
-    let d = t.replace(/\D/g, '')
-    if (d.startsWith('61')) d = d.slice(2)
-    if (d.startsWith('0')) d = d.slice(1)
-    return /^4\d{8}$/.test(d) ? null : 'invalid'
+type SendState = 'idle' | 'sending' | 'error' | 'sent'
+let submitter: ReturnType<typeof createLeadSubmitter> | null = null
+const leadSubmitter = () => (submitter ??= createLeadSubmitter({
+  sender: probed(createSimulatedSender(simulatedModeFrom(location.search))),
+  readAttribution,
+  // no onConfirmed: the simulated sender wrote nothing, so there is no conversion to count
+}))
+// lab probe (prototype only): each call that reaches the sender is announced with the row's KEYS, never its values, so
+// the browser checks can count submissions (double click = 1) and see the attribution keys travel
+function probed(sender: LeadSender): LeadSender {
+  return (row, signal) => {
+    window.dispatchEvent(new CustomEvent('brandup:lead-send', { detail: { keys: Object.keys(row) } }))
+    return sender(row, signal)
   }
-  return null
 }
-const ORDER: FieldKey[] = ['name', 'company', 'email', 'phone', 'revenue']
+// the light of the success: one beam per field converges on the button, then the button's arrow rises as the data
+const FX_BEAMS = LEAD_FIELDS.length
 
 function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; compact?: boolean }) {
   const formRef = useRef<HTMLFormElement>(null)
   const orlaRef = useRef<HTMLCanvasElement>(null)
+  const fxRef = useRef<HTMLDivElement>(null)
+  const doneRef = useRef<HTMLDivElement>(null)
+  const honeypotRef = useRef<HTMLInputElement>(null)
   // brief-v4.4 §9: the orla around the form; its horizon (the sibling [data-horizon]) is the line of its base
   useEffect(() => {
     const f = formRef.current, c = orlaRef.current
@@ -252,24 +264,79 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
   }, [orla])
   const [values, setValues] = useState<Values>({ name: '', company: '', email: '', phone: '', revenue: '' })
   const [touched, setTouched] = useState<Partial<Record<FieldKey, boolean>>>({})
-  const [status, setStatus] = useState<'idle' | 'sending' | 'done'>('idle')
+  const [status, setStatus] = useState<SendState>('idle')
+  const [failure, setFailure] = useState<'network' | 'server' | null>(null)
+  // synchronous guard: a double click lands twice before React re-renders the disabled button (the module guards the page)
+  const pendingRef = useRef(false)
+  const abortRef = useRef<AbortController | null>(null)
+  useEffect(() => () => abortRef.current?.abort(), [])
   const refs = useRef<Partial<Record<FieldKey, HTMLElement | null>>>({})
-  const errorOf = (k: FieldKey) => (touched[k] ? validate(k, values[k]) : null)
-  const ready = ORDER.every((k) => validate(k, values[k]) === null)
+  const errorOf = (k: FieldKey) => (touched[k] ? validateLeadField(k, values[k]) : null)
+  const ready = LEAD_FIELDS.every((k) => validateLeadField(k, values[k]) === null)
   useEffect(() => {
-    bus.beams[id] = ORDER.map((k) => validate(k, values[k]) === null)
+    bus.beams[id] = LEAD_FIELDS.map((k) => validateLeadField(k, values[k]) === null)
     ticker.wake()
   }, [id, values])
   useEffect(() => () => { delete bus.beams[id] }, [id])
-  const set = (k: FieldKey, v: string) => setValues((s) => ({ ...s, [k]: v }))
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    setTouched({ name: true, company: true, email: true, phone: true, revenue: true })
-    const first = ORDER.find((k) => validate(k, values[k]) !== null)
-    if (first) { refs.current[first]?.focus(); return }
-    setStatus('sending')
-    setTimeout(() => setStatus('done'), 900)
+  const set = (k: FieldKey, v: string) => {
+    setValues((s) => ({ ...s, [k]: v }))
+    if (status === 'error') { setStatus('idle'); setFailure(null) }
   }
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (pendingRef.current || status === 'sent') return
+    setTouched({ name: true, company: true, email: true, phone: true, revenue: true })
+    const first = LEAD_FIELDS.find((k) => validateLeadField(k, values[k]) !== null)
+    if (first) { refs.current[first]?.focus(); return }
+    pendingRef.current = true
+    const controller = new AbortController()
+    abortRef.current = controller
+    setStatus('sending'); setFailure(null)
+    try {
+      const out = await leadSubmitter().submit(id, { ...values, website: honeypotRef.current?.value ?? '' }, controller.signal)
+      if (out.status === 'aborted') return // unmounted: nothing to update
+      if (out.status === 'sent' || out.status === 'honeypot') { setStatus('sent'); return }
+      if (out.status === 'error') { setFailure(out.kind); setStatus('error'); return }
+      if (out.status === 'invalid') refs.current[out.field]?.focus()
+      setStatus('idle') // busy (the other form is sending) or invalid: back to the form, values untouched
+    } finally {
+      pendingRef.current = false
+      if (abortRef.current === controller) abortRef.current = null
+    }
+  }
+  // the success light: measured before the first painted frame of `sent`, so every path starts where its element is
+  useLayoutEffect(() => {
+    if (status !== 'sent') return
+    const f = formRef.current
+    doneRef.current?.focus({ preventScroll: true }) // the button is about to hide: keep the focus on the answer
+    // the engine draws only when asked: once the button has faded (.6 + .28 s) its light must be redrawn away, or the last
+    // frame keeps a glow around nothing
+    const wake = setTimeout(() => ticker.wake(), reduced ? 0 : 960)
+    if (!f || reduced) return () => clearTimeout(wake)
+    const box = f.getBoundingClientRect()
+    const at = (el: Element | null | undefined) => {
+      const r = el?.getBoundingClientRect()
+      return r ? { x: r.left + r.width / 2 - box.left, y: r.top + r.height / 2 - box.top, top: r.top - box.top, bottom: r.bottom - box.top } : null
+    }
+    const btn = at(f.querySelector('.submit .btn'))
+    const arrow = at(f.querySelector('.submit .btn-arrow'))
+    const mark = at(f.querySelector('.done-mark'))
+    if (!btn || !arrow || !mark) return () => clearTimeout(wake)
+    f.style.setProperty('--px', `${(arrow.x - mark.x).toFixed(1)}px`)
+    f.style.setProperty('--py', `${(arrow.y - mark.y).toFixed(1)}px`)
+    const beams = fxRef.current?.children
+    LEAD_FIELDS.forEach((k, i) => {
+      const src = at(k === 'revenue' ? f.querySelector('.revenue .blocks') : refs.current[k])
+      const el = beams?.[i] as HTMLElement | undefined
+      if (!src || !el) return
+      const x0 = src.x, y0 = src.bottom
+      el.style.setProperty('--x0', `${x0.toFixed(1)}px`); el.style.setProperty('--y0', `${y0.toFixed(1)}px`)
+      el.style.setProperty('--x1', `${btn.x.toFixed(1)}px`); el.style.setProperty('--y1', `${btn.y.toFixed(1)}px`)
+      // the streak points along its own path (0deg = straight down)
+      el.style.setProperty('--a', `${(Math.atan2(btn.x - x0, btn.y - y0) * -180 / Math.PI).toFixed(1)}deg`)
+    })
+    return () => clearTimeout(wake)
+  }, [status])
   const message = (k: FieldKey) => {
     const e = errorOf(k)
     if (!e) return null
@@ -277,9 +344,16 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
     const f = fields.find((x) => x.key === k)!
     return e === 'empty' ? f.empty : f.invalid
   }
+  const sent = status === 'sent'
   return (
-    <form id={id} ref={formRef} className={compact ? 'lead compact' : 'lead'} data-dark={compact ? '' : undefined} data-in="voice-control" noValidate onSubmit={onSubmit}>
+    <form id={id} ref={formRef} className={compact ? 'lead compact' : 'lead'} data-dark={compact ? '' : undefined} data-in="voice-control"
+      data-state={status} noValidate onSubmit={onSubmit}>
       {orla && <canvas ref={orlaRef} className="orla" aria-hidden="true" />}
+      {/* honeypot (App.tsx): off-screen, out of the tab order; a person never fills it */}
+      <div className="hp" aria-hidden="true">
+        <label htmlFor={`${id}-website`}>Website</label>
+        <input id={`${id}-website`} ref={honeypotRef} name="website" type="text" tabIndex={-1} autoComplete="off" />
+      </div>
       {fields.map((f) => {
         const err = message(f.key)
         const inputId = `${id}-${f.key}`
@@ -289,8 +363,8 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
             <div className={f.key === 'phone' ? 'input input-phone' : 'input'}>
               {f.key === 'phone' && <span className="prefix" aria-hidden="true">+61</span>}
               <input id={inputId} ref={(el) => { refs.current[f.key] = el }} name={f.key} type={f.type} inputMode={f.inputMode}
-                autoComplete={f.autoComplete} placeholder={f.placeholder} value={values[f.key]} required
-                minLength={f.key === 'name' || f.key === 'company' ? 2 : undefined}
+                autoComplete={f.autoComplete} placeholder={f.placeholder} value={values[f.key]} required readOnly={sent}
+                minLength={f.key === 'name' || f.key === 'company' ? 2 : undefined} maxLength={LEAD_MAX_LENGTH[f.key]}
                 aria-invalid={err ? true : undefined} aria-describedby={err ? `${inputId}-err` : undefined}
                 onChange={(e) => set(f.key, e.target.value)}
                 // v54 (jury v53: 4 red errors for whoever only Tabs through): a field is judged on leaving it only once
@@ -306,7 +380,7 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
         <div className="blocks">
           {revenue.options.map((o, i) => (
             <label key={o.value} className="block">
-              <input type="radio" name={`${id}-revenue`} value={o.value} checked={values.revenue === o.value}
+              <input type="radio" name={`${id}-revenue`} value={o.value} checked={values.revenue === o.value} disabled={sent}
                 ref={i === 0 ? (el) => { refs.current.revenue = el } : undefined}
                 onChange={() => { set('revenue', o.value); setTouched((t) => ({ ...t, revenue: true })) }} />
               <span>{o.label}</span>
@@ -316,12 +390,29 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
         {message('revenue') && <p className="err" id={`${id}-rev-err`}>{message('revenue')}</p>}
       </fieldset>
       <div className="submit">
-        <button className="btn" type="submit" disabled={status === 'sending'} aria-busy={status === 'sending' || undefined}
+        {/* copy.md: the network error sits above the button, the answers stay */}
+        {status === 'error' && <p className="err submit-err" role="alert">{failure === 'server' ? form.serverError : form.networkError}</p>}
+        <button className="btn" type="submit" disabled={status === 'sending'} aria-disabled={sent || undefined} aria-busy={status === 'sending' || undefined}
           data-act={id} data-act-ready={ready ? 'true' : undefined} data-state={status}>
           <BtnBody>{status === 'sending' ? form.sending : form.button}</BtnBody>
         </button>
         <p className="privacy" data-dark="12">{form.privacy} <a href="/privacy">{form.privacyLink}</a></p>
-        <p className="status" role="status">{status === 'done' ? form.protoNote : ''}</p>
+        <p className="status" role="status">{status === 'sending' ? form.sending : ''}</p>
+      </div>
+      {sent && !reduced && (
+        <div className="lead-fx" ref={fxRef} aria-hidden="true">
+          {Array.from({ length: FX_BEAMS }, (_, i) => <i key={i} style={{ '--i': i } as CSSProperties} />)}
+        </div>
+      )}
+      {/* the answer: an empty live region from the first paint, filled on success (so it is announced) */}
+      <div className="lead-done" ref={doneRef} role="status" tabIndex={-1}>
+        {sent && (
+          <>
+            <svg className="done-mark" viewBox="12 11 16 21" width="10" height="13" aria-hidden="true"><path d="M20 13 L26 22 L14 22 Z" /><rect x="17.5" y="21" width="5" height="9" rx="2.5" /></svg>
+            <p className="done-text" data-dark={compact ? undefined : '12'}>{form.success}</p>
+            <p className="done-note">{form.protoNote}</p>
+          </>
+        )}
       </div>
     </form>
   )

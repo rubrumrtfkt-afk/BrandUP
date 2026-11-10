@@ -27,7 +27,12 @@ export const form = {
   button: 'Build my AI office',
   sending: 'Sending…',
   networkError: 'We couldn’t send this. Your answers are still here. Check your connection and try again.',
-  // Prototype only: nothing is sent this round (no Supabase import). Not copy, a lab note.
+  // PROVISÓRIO (copy-director): copy.md has one error line, about the connection; this one is for an answer from the
+  // server (a CHECK, RLS), where "check your connection" would send the person the wrong way.
+  serverError: 'We couldn’t send this. Your answers are still here. Please try again.',
+  // copy.md "Botão e estados", the success line (on the live site it is the /thank-you title; the prototype stays on the page)
+  success: 'Thanks, your details are in. We’ll call within 5 minutes during business hours.',
+  // Prototype only: the simulated sender sends nothing. Not copy, a lab note shown under the confirmation.
   protoNote: 'Prototype: nothing was sent.',
 }
 

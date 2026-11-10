@@ -674,3 +674,36 @@ html:not(.gl-on) [data-cursor] > .testi-wire::after { transition: clip-path .24s
   .no-js .testi-rail { display: grid; gap: 48px; padding: 0 var(--m); }
   .tq p { font-size: 16px; }
 }
+
+/* ================= v56: the lead form sends ================= */
+/* honeypot (App.tsx): out of sight and out of the tab order; never display:none (some bots skip hidden fields) */
+.hp { position: absolute; left: -10000px; top: 0; width: 1px; height: 1px; overflow: hidden; }
+.submit-err { max-width: 46ch; margin: 0; }
+/* the answer takes the form's place in the same box: no layout shift below it */
+.lead-done { position: absolute; inset: 0; z-index: 2; display: grid; align-content: center; justify-items: start; gap: 14px; pointer-events: none; outline: none; }
+.final .lead-done { justify-items: center; text-align: center; }
+.done-mark { width: 16px; height: 21px; fill: var(--mint); }
+.done-text { max-width: 24ch; margin: 0; color: var(--ink); font: 400 var(--type-frame-size)/var(--type-frame-leading) var(--font-display); text-wrap: balance; }
+.done-note { margin: 0; color: var(--ink-2); font-size: 15px; }
+/* "the work is light": one streak per field converges on the button (0–.68 s), the button takes it, its arrow leaves and
+   rises as the data (the logo's arrow, mint: ≈ 340 px² of green), the form fades and the answer reads. transform/opacity only. */
+.lead-fx { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.lead-fx i { position: absolute; left: -1px; top: -20px; width: 2px; height: 40px; border-radius: 1px; background: linear-gradient(rgb(251 247 255 / 0), #FBF7FF); opacity: 0; animation: lead-beam .56s cubic-bezier(.5, 0, .2, 1) calc(var(--i) * 45ms) both; } /* taste-skill-ignore: a 2-px light streak (the field's beam), not a gradient fill */
+@keyframes lead-beam {
+  0% { opacity: 0; transform: translate(var(--x0), var(--y0)) rotate(var(--a)); }
+  20% { opacity: .95; }
+  100% { opacity: 0; transform: translate(var(--x1), var(--y1)) rotate(var(--a)) scaleY(.4); }
+}
+.lead[data-state="sent"] .submit .btn { animation: lead-take .3s var(--ease-out) .4s both; }
+@keyframes lead-take { 0% { transform: scale(1); } 40% { transform: scale(1.025); } 100% { transform: scale(1); } }
+.lead[data-state="sent"] .submit .btn-arrow { animation: lead-off .01s linear .42s both; }
+.lead[data-state="sent"] > :is(.field, .submit) { animation: lead-off .28s ease-out .6s both; }
+@keyframes lead-off { to { opacity: 0; visibility: hidden; } }
+.lead[data-state="sent"] .done-mark { animation: lead-rise .64s cubic-bezier(.3, .7, .2, 1) .42s both, lead-on .01s linear .42s both; }
+@keyframes lead-rise { from { transform: translate(var(--px, 0), var(--py, 0)) scale(.625); } to { transform: none; } }
+@keyframes lead-on { from { opacity: 0; } to { opacity: 1; } }
+.lead[data-state="sent"] :is(.done-text, .done-note) { animation: lead-in .32s var(--ease-out) .86s both; }
+@keyframes lead-in { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+/* reduced motion: the answer at once, nothing travels */
+.reduced .lead[data-state="sent"] > :is(.field, .submit) { animation: none; visibility: hidden; }
+.reduced .lead[data-state="sent"] :is(.done-mark, .done-text, .done-note) { animation: none; }
