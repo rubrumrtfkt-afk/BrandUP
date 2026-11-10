@@ -45,6 +45,11 @@
         var c = navigator.connection, seen = false;
         try { seen = sessionStorage.getItem('bu-intro') === '1'; sessionStorage.setItem('bu-intro', '1'); } catch (e) { seen = false; }
         if (q.has('intro')) seen = q.get('intro') === 'short';
+        // v57 (owner: conversion): the page never restores a scroll; a reload starts at the top (the in-page links no
+        // longer write a hash, nav.ts). A link from OUTSIDE with a hash (an ad, an e-mail: /proto.html#diagnostic) opens
+        // on its target with no intro; nav.ts lands there with the header shown and drops the hash from the URL.
+        try { history.scrollRestoration = 'manual'; } catch (e) { /* old engines: the browser restores, the intro skips past .3 vh */ }
+        if (location.hash.length > 1 && location.hash !== '#top') { d.classList.add('from-hash'); return; }
         if ((c && c.saveData) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         d.classList.add('intro');
         if (seen) d.classList.add('intro-short');

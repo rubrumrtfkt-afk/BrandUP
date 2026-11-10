@@ -9,7 +9,7 @@
   color-scheme: dark;
 }
 *, *::before, *::after { box-sizing: border-box; }
-html { background: var(--ground); -webkit-text-size-adjust: 100%; scroll-padding-top: 24px; }
+html { --bar-h: 64px; background: var(--ground); -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--bar-h) + 16px); } /* v57: a focused or anchored element never lands under the fixed header */
 body { margin: 0; background: transparent; color: var(--ink); font-family: var(--font-text); font-size: var(--type-body-size); line-height: var(--type-body-leading); -webkit-font-smoothing: antialiased; overflow-x: clip; }
 /* v4.5 the ground (owner: "completely black" → texture and depth). html keeps the flat ground (also inline in the
    <head>, the anti-flash); body is transparent so these two fixed layers paint between it and the canvas (z -1 in
@@ -159,8 +159,11 @@ img.poster { object-fit: cover; }
 .moon-t { font: 500 15px/1 var(--font-text); letter-spacing: .02em; color: var(--ink); }
 .shift-office { position: absolute; left: var(--m); width: calc((100% - 2 * var(--m)) * .75); top: 34%; bottom: 4%; } /* §6.2: c1–c9, the block's top at 34 % */
 .place { font: 500 var(--type-label-size)/1.3 var(--font-text); color: var(--ink-2); } /* §6.4: a phrase in Label 15, no small caps */
-.desks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto auto; row-gap: clamp(16px, 6vh, 64px); margin-top: 18px; }
-.desk { display: grid; justify-items: start; gap: 4px; min-width: 0; }
+.desks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto auto; column-gap: clamp(12px, 4vw, 32px); row-gap: clamp(16px, 6vh, 64px); margin-top: 18px; }
+/* each plaque is a column of its own width, not the width of its longest unwrapped line: every nested grid below
+   (.desk → .desk-label → .dstack) gets an explicit flexible track (minmax(0, 1fr), not the implicit auto column),
+   so none of them size themselves to their text's max-content and push past the gap into the next desk (fix 2) */
+.desk { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 4px; min-width: 0; }
 /* the back row stands further away: a smaller figure (78 %), the text keeps its size */
 .desk:nth-child(-n+3) { padding-left: 4%; }
 .desk:nth-child(-n+3) .fig { width: 112px; height: 112px; }
@@ -190,22 +193,22 @@ img.poster { object-fit: cover; }
 /* §4.2: the pool under the desk rises one dither level while the task lands (600 ms, data-work) and comes back */
 .desk[data-work="true"] .fig::before { -webkit-mask: radial-gradient(closest-side, rgb(0 0 0 / .8) 0 30%, rgb(0 0 0 / .55) 30% 62%, rgb(0 0 0 / .3) 62% 99%, transparent 100%); mask: radial-gradient(closest-side, rgb(0 0 0 / .8) 0 30%, rgb(0 0 0 / .55) 30% 62%, rgb(0 0 0 / .3) 62% 99%, transparent 100%); } /* taste-skill-ignore: hard-stop density levels of the dither, one level up, not a fill */
 @keyframes beam-up { 0% { opacity: 1; transform: translateY(-100%) scaleY(0); } 60% { opacity: 1; transform: translateY(-100%) scaleY(1); } 100% { opacity: 0; transform: translateY(-160%) scaleY(.4); } }
-.desk-label { display: grid; gap: 3px; padding: 2px 0; justify-self: stretch; min-width: 0; } /* §4.5: a task wraps, never into the next column */
+.desk-label { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; padding: 2px 0; justify-self: stretch; min-width: 0; } /* §4.5: a task wraps, never into the next column */
 .dname { font: 500 15px/1.2 var(--font-text); color: var(--ink); }
 .dname .short { display: none; }
 /* brief-v4.4 §4.2 the shift board: name (Label 15) / hour (Label 15 tabular, ink-2) + task (Lead 18, ink) / the one
    before at 40 % (1440 only). A station board: the new line comes in under the name, the stack slides (320 ms,
    transform only), the clip hides what leaves. The task may wrap to 2 lines, never into the next column. */
-.dboard { display: block; width: 100%; overflow: hidden; overflow: clip; height: calc(var(--type-lead-size, 18px) * 1.25 * 3 + 4px); }
-.dstack { display: grid; row-gap: 4px; justify-items: start; transition: transform .32s cubic-bezier(.2, .75, .2, 1); }
-.dline { display: block; max-width: 100%; transition: opacity .32s cubic-bezier(.2, .75, .2, 1); }
+.dboard { display: block; width: 100%; min-width: 0; overflow: hidden; overflow: clip; height: calc(var(--type-lead-size, 18px) * 1.25 * 3 + 4px); }
+.dstack { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: 4px; justify-items: start; transition: transform .32s cubic-bezier(.2, .75, .2, 1); }
+.dline { display: block; width: 100%; max-width: 100%; min-width: 0; transition: opacity .32s cubic-bezier(.2, .75, .2, 1); }
 /* v55b (jury, axe after the scroll: the earlier lines at opacity .4 were 2.37:1 and 3.48:1): the same step back, in a tone
    instead, at AA on the ground (#7d7b81 = 4.7:1 for the 15 px hour, #8a888d = 5.7:1 for the 18 px task); not a regression
    (v54 had the same .4) */
 .dline.prev .dh { color: #7d7b81; }
 .dline.prev .dtk { color: #8a888d; }
-.dh { font: 500 var(--type-label-size)/1.25 var(--font-text); color: var(--ink-2); font-variant-numeric: tabular-nums; transition: color .32s cubic-bezier(.2, .75, .2, 1); }
-.dtk { font: 400 var(--type-lead-size, 18px)/1.25 var(--font-text); color: var(--ink); transition: color .32s cubic-bezier(.2, .75, .2, 1); }
+.dh { font: 500 var(--type-label-size)/1.25 var(--font-text); color: var(--ink-2); font-variant-numeric: tabular-nums; overflow-wrap: break-word; transition: color .32s cubic-bezier(.2, .75, .2, 1); }
+.dtk { font: 400 var(--type-lead-size, 18px)/1.25 var(--font-text); color: var(--ink); overflow-wrap: break-word; transition: color .32s cubic-bezier(.2, .75, .2, 1); }
 .dnone { width: 24px; height: 1px; margin-top: 11px; background: var(--ink-2); } /* taste-skill-ignore: brief-v4.4 §4.2 asks for a 1-px dash where the first task will be (not a divider) */
 .home { position: absolute; right: var(--m); width: calc((100% - 2 * var(--m)) * .2); top: 34%; bottom: 4%; padding-left: 28px; border-left: 1px solid rgb(244 241 248 / .08); display: grid; align-content: start; gap: 18px; } /* taste-skill-ignore: brief-v4.2 §5.2 asks for this hairline (alpha .08) between Office and Home */
 .sleeper { position: relative; display: block; width: 192px; height: 96px; margin-top: calc(112px + 6vh); }
@@ -475,7 +478,7 @@ img.poster { object-fit: cover; }
   .moon { left: auto; right: calc(100% - 13px); top: -13px; grid-auto-flow: column; align-items: center; }
   .moon-t { order: -1; } /* the hour sits left of the moon: the box never passes x 370 */
   .shift-office { left: var(--m); right: var(--m); width: auto; top: 270px; bottom: auto; }
-  .desks { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 14px; margin-top: 10px; }
+  .desks { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 12px; row-gap: 14px; margin-top: 10px; } /* fix v57.1: ≥ 12 px between columns, each plaque wraps inside its own width now */
   .desk:nth-child(-n+3) { padding-left: 0; }
   .desk:nth-child(-n+3) .fig, .fig { width: 88px; height: 88px; } /* §6.2: 88 px, no perspective */
   .beam { height: 48px; }
@@ -557,7 +560,22 @@ img.poster { object-fit: cover; }
 html:not(.intro) .intro-skipbtn { display: none; }
 
 /* §6 the header: 80 px, the mark at 28 px, "Diagnosis" in the accent */
-.bar { height: 80px; }
+.bar { height: var(--bar-h); }
+/* v57 (owner: conversion) the header is FIXED and compact (64 / 56 px; the logo keeps 36 / 30 px and "Diagnosis" its
+   44-px target). nav.ts sets data-top (scrollY < 8: as before, no ground behind it, over the hero) and data-hidden (past
+   the fold: 8 px down hides it, 6 px up brings it back). Only transform and opacity move. The ground is the page's own:
+   the near-black at .86 with the same 192-px grain tile, fixed at the same origin as body::after, and a hairline. No
+   backdrop-filter (no blur per frame over the WebGL canvas). It carries no data-dark: its ground dims the light. */
+.bar { position: fixed; z-index: 10; transform: translate3d(0, 0, 0); transition: transform .22s var(--ease-out); }
+.bar::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0; transition: opacity .22s var(--ease-out);
+  background: url(./assets/ground-grain.png) 0 0 / 192px 192px, rgb(8 7 11); image-rendering: pixelated; border-bottom: 1px solid rgb(244 241 248 / .08); } /* fix v57.1: the solid layer is now opaque (was .86, raised to .99 — still leaked a big H2 through in WebKit); the grain stays translucent (its own image layer, on top) so the header still reads as the page's own ground, not a flat panel */
+.bar[data-top="false"]::before { opacity: 1; }
+.bar[data-hidden="true"]:not(:focus-within) { transform: translate3d(0, calc(-100% - 2px), 0); }
+.intro .bar { transform: none; }
+.reduced .bar, .reduced .bar::before { transition: none; }
+@media (prefers-reduced-motion: reduce) { .bar, .bar::before { transition: none; } }
+/* a heading that takes the focus from an anchor (tabindex -1, nav.ts) is not a control: no ring around a 7-word title */
+:is(h1, h2)[tabindex="-1"]:focus { outline: none; }
 .brand { gap: 12px; min-height: 44px; font-size: 22px; }
 .brand svg { width: 36px; height: 36px; } /* v54 (owner: the header logo bigger): 36 px at 1440 (was 28) */
 .bar-link { color: var(--mint); text-decoration-line: underline; text-decoration-color: rgb(88 246 177 / .45); text-decoration-thickness: 1.5px; }
@@ -651,7 +669,7 @@ html:not(.gl-on) [data-cursor] > .testi-wire::after { transition: clip-path .24s
 @media (prefers-reduced-motion: reduce) { .tq :is(blockquote, p, .tq-sig), .tq .tq-sig::after, [data-cursor] > .testi-wire, [data-cursor] > .testi-wire::after { transition: none !important; } }
 
 @media (max-width: 767px) {
-  .bar { height: 64px; }
+  html { --bar-h: 56px; }
   .brand { font-size: 19px; }
   .brand svg { width: 30px; height: 30px; } /* v54: 36 × 390-scale (was 24) */
   .hero .lede { max-width: none; margin-top: 18px; }

@@ -7,6 +7,7 @@ import { initTesti } from './testiScene'
 import { initGround } from './ground'
 import { initFootPeak } from './footPeak'
 import { initSmoothScroll } from './smoothScroll'
+import { initNav } from './nav'
 import { POSTER_T, deskBoards, doneAt, initNightShift } from './nightShift'
 import { initOrla, type OrlaId } from './orla'
 import { NODES, YOU_HOLD, netFrame, netToScreen } from './layout'
@@ -43,6 +44,9 @@ export function Proto() {
     addEventListener('resize', onResize)
     return () => { removeEventListener('touchstart', freeze); removeEventListener('resize', onResize) }
   }, [])
+  // v57 last of the page's effects (the scenes have laid out): anchors without the hash, the arrival with a hash, the
+  // header that hides going down and comes back going up (nav.ts)
+  useEffect(() => initNav(reduced), [])
   return (
     <>
       <PatternDefs />
