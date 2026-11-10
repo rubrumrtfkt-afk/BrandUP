@@ -6,14 +6,13 @@ import AdminPage from './AdminPage.tsx'
 import Privacy from './Privacy.tsx'
 import ThankYou from './ThankYou.tsx'
 import { captureAttribution } from './lib/attribution'
-import { detectPasswordLink, hasAuthLinkError, storePasswordSetup } from './lib/passwordLink'
+import { detectPasswordLink, hasAuthLinkError } from './lib/passwordLink'
 
 const url = new URL(window.location.href)
+// Routing only: an unverified URL never marks a password step (the admin page does,
+// after the link's token produced the session). AdminPage, imported above, has already
+// read the link and dropped a token_hash from the address bar.
 const passwordLinkType = detectPasswordLink(window.location.href)
-
-if (passwordLinkType) {
-  storePasswordSetup(sessionStorage, passwordLinkType)
-}
 
 // Invite and reset links (and their expired-link redirects) open the admin page even if
 // Supabase falls back to the site root, so their tokens never reach captureAttribution.

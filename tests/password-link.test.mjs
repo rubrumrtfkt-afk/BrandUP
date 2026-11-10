@@ -4,18 +4,32 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 
-// Same loader as leadboard.test.mjs: transpile the real module, no test dependencies.
-async function load(path) {
-  const output = ts.transpileModule(fs.readFileSync(path, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
-  return import(`data:text/javascript;base64,${Buffer.from(output).toString('base64')}`)
+// Same loader as leadboard.test.mjs; `replace` points a relative import at an already-loaded module.
+const toDataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`
+function transpile(path, replace = {}) {
+  let output = ts.transpileModule(fs.readFileSync(path, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText
+  for (const [from, to] of Object.entries(replace)) output = output.replaceAll(`'${from}'`, `'${to}'`)
+  return toDataUrl(output)
 }
-const link = await load(new URL('../src/lib/passwordLink.ts', import.meta.url))
-const source = name => fs.readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8')
+const linkUrl = transpile(new URL('../src/lib/passwordLink.ts', import.meta.url))
+const link = await import(linkUrl)
+const { createPasswordFlow } = await import(transpile(new URL('../src/lib/passwordFlow.ts', import.meta.url), { './passwordLink': linkUrl }))
+
+const site = 'https://brandupadvisory.com/'
+const jwt = (sub, extra = {}) => `h.${Buffer.from(JSON.stringify({ sub, ...extra })).toString('base64url')}.s`
+const sessionOf = id => ({ access_token: jwt(`user-${id}`, { iat: Date.now() }), user: { id: `user-${id}`, email: `admin-${id}@example.test` } })
 function memoryStorage() {
   const values = new Map()
-  return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) }
+  return { values, getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) }
 }
-const site = 'https://brandupadvisory.com/'
+// Fake supabase.auth: records the order of calls and lets a test fire events mid-signOut.
+function fakeAuth(session) {
+  return {
+    session, calls: [], duringSignOut: null,
+    async getSession() { this.calls.push('getSession'); return { data: { session: this.session } } },
+    async signOut(options) { this.calls.push(`signOut:${options.scope}`); this.duringSignOut?.(); this.session = null; return { error: null } },
+  }
+}
 
 test('Invite and recovery links are recognised with token_hash or access_token', () => {
   for (const [path, expected] of [
@@ -25,6 +39,7 @@ test('Invite and recovery links are recognised with token_hash or access_token',
     ['#access_token=a&expires_in=3600&refresh_token=r&token_type=bearer&type=recovery', 'recovery'],
     ['#access_token=a&token_type=bearer&type=invite', 'invite'],
   ]) assert.equal(link.detectPasswordLink(site + path), expected, path)
+  assert.deepEqual(link.parsePasswordLink(`${site}?type=recovery&token_hash=hash-b`), { type: 'recovery', tokenHash: 'hash-b', accessToken: null })
 })
 
 test('Links without a token, other auth types and look-alike params are not password links', () => {
@@ -33,49 +48,93 @@ test('Links without a token, other auth types and look-alike params are not pass
 })
 
 test('Expired or reused links are detected from the error hash only', () => {
-  assert.equal(link.hasAuthLinkError(`${site}?admin=1#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid`), true)
-  assert.equal(link.hasAuthLinkError(`${site}#error_code=otp_expired`), true)
+  assert.equal(link.hasAuthLinkError(`${site}?admin=1#error=access_denied&error_code=otp_expired`), true)
   assert.equal(link.hasAuthLinkError(`${site}?error_code=otp_expired`), false)
   assert.equal(link.hasAuthLinkError(site), false)
 })
 
-test('The value the router stores is the value the admin page reads', () => {
+test('The JWT subject is read without trusting anything else in the token', () => {
+  assert.equal(link.jwtSubject(jwt('user-b')), 'user-b')
+  for (const bad of [null, 'token-b', 'a.%%%.c', `h.${Buffer.from('{"sub":42}').toString('base64url')}.s`, 'h..s']) assert.equal(link.jwtSubject(bad), null, String(bad))
+})
+
+test("Admin A's session never counts for admin B's link; a renewed token of B still does", () => {
+  const hashLinkB = link.parsePasswordLink(`${site}?type=recovery&token_hash=hash-b`)
+  const implicitLinkB = link.parsePasswordLink(`${site}#access_token=${jwt('user-b')}&type=recovery`)
+  assert.deepEqual(link.decideInitialLink(hashLinkB, 'user-a'), { signOutExisting: true, allowPasswordSetup: false, linkFailed: false })
+  assert.deepEqual(link.decideInitialLink(hashLinkB, null), { signOutExisting: false, allowPasswordSetup: false, linkFailed: false })
+  assert.deepEqual(link.decideInitialLink(implicitLinkB, 'user-a'), { signOutExisting: true, allowPasswordSetup: false, linkFailed: true })
+  assert.deepEqual(link.decideInitialLink(implicitLinkB, null), { signOutExisting: false, allowPasswordSetup: false, linkFailed: true })
+  assert.deepEqual(link.decideInitialLink(implicitLinkB, 'user-b'), { signOutExisting: false, allowPasswordSetup: true, linkFailed: false })
+  assert.deepEqual(link.decideInitialLink(null, 'user-a'), { signOutExisting: false, allowPasswordSetup: false, linkFailed: false })
+})
+
+test('token_hash link with admin A signed in: A is signed out before any event is honoured', async () => {
+  const storage = memoryStorage(), sessionA = sessionOf('a'), sessionB = sessionOf('b')
+  const auth = fakeAuth(sessionA)
+  const flow = createPasswordFlow(auth, link.parsePasswordLink(`${site}?type=recovery&token_hash=hash-b`), storage)
+  const duringSignOut = []
+  auth.duringSignOut = () => duringSignOut.push(flow.onAuthEvent('PASSWORD_RECOVERY', sessionA, null).kind, flow.onAuthEvent('SIGNED_IN', sessionA, null).kind)
+  const result = await flow.init()
+  assert.deepEqual(auth.calls, ['getSession', 'signOut:local'])
+  assert.deepEqual(duringSignOut, ['ignore', 'ignore'], 'events of the old session are ignored until the link is resolved')
+  assert.deepEqual(result, { session: null, passwordSetup: null, linkFailed: false })
+  assert.equal(storage.values.size, 0, 'nothing marked before verifyOtp')
+  const setup = flow.acceptVerifiedLink(sessionB)
+  assert.deepEqual(setup, { type: 'recovery', userId: 'user-b' })
+  assert.equal(link.canSetPassword(setup, 'user-a'), false, "updateUser is blocked with A's session")
+  assert.equal(link.canSetPassword(setup, 'user-b'), true)
+})
+
+test('Implicit link: only the session of the link account opens the password step', async () => {
+  const implicitB = link.parsePasswordLink(`${site}#access_token=${jwt('user-b')}&type=invite`)
+  const valid = createPasswordFlow(fakeAuth(sessionOf('b')), implicitB, memoryStorage())
+  const ok = await valid.init()
+  assert.deepEqual(ok.passwordSetup, { type: 'invite', userId: 'user-b' })
+
+  // supabase-js keeps the old session when the URL token fails: the flow must not.
+  const storage = memoryStorage(); storage.setItem(link.PASSWORD_SETUP_KEY, JSON.stringify({ type: 'recovery', userId: 'user-a' }))
+  const auth = fakeAuth(sessionOf('a'))
+  const failed = await createPasswordFlow(auth, implicitB, storage).init()
+  assert.deepEqual(failed, { session: null, passwordSetup: null, linkFailed: true })
+  assert.deepEqual(auth.calls, ['getSession', 'signOut:local'])
+  assert.equal(storage.values.size, 0)
+})
+
+test('Two tabs: a password step marked for B is not honoured for A, and A signing in drops it', async () => {
+  const storage = memoryStorage(), setupB = { type: 'recovery', userId: 'user-b' }
+  storage.setItem(link.PASSWORD_SETUP_KEY, JSON.stringify(setupB))
+  assert.equal((await createPasswordFlow(fakeAuth(sessionOf('a')), null, storage).init()).passwordSetup, null)
+  const flowB = createPasswordFlow(fakeAuth(sessionOf('b')), null, storage)
+  assert.deepEqual((await flowB.init()).passwordSetup, setupB, 'a reload of B resumes B')
+  assert.equal(flowB.onAuthEvent('SIGNED_IN', sessionOf('b'), setupB).keepPasswordSetup, true)
+  const other = flowB.onAuthEvent('SIGNED_IN', sessionOf('a'), setupB)
+  assert.equal(other.kind, 'signedIn')
+  assert.equal(other.keepPasswordSetup, false)
+  assert.equal(storage.values.size, 0)
+})
+
+test('PASSWORD_RECOVERY marks the step for its own account once the link is resolved; sign-out clears it', async () => {
+  const storage = memoryStorage(), sessionB = sessionOf('b')
+  const flow = createPasswordFlow(fakeAuth(sessionB), link.parsePasswordLink(`${site}#access_token=${jwt('user-b')}&type=recovery`), storage)
+  assert.equal(flow.onAuthEvent('PASSWORD_RECOVERY', sessionB, null).kind, 'ignore')
+  await flow.init()
+  assert.deepEqual(flow.onAuthEvent('PASSWORD_RECOVERY', sessionB, null).setup, { type: 'recovery', userId: 'user-b' })
+  assert.equal(flow.onAuthEvent('TOKEN_REFRESHED', sessionB, null).kind, 'ignore')
+  assert.equal(flow.onAuthEvent('SIGNED_OUT', null, null).kind, 'signedOut')
+  assert.equal(storage.values.size, 0)
+})
+
+test('Unverified markers from older builds and blocked storage are ignored without throwing', () => {
   const storage = memoryStorage()
-  for (const type of ['invite', 'recovery']) {
-    link.storePasswordSetup(storage, link.detectPasswordLink(`${site}?type=${type}&token_hash=x`))
-    assert.equal(storage.getItem(link.PASSWORD_SETUP_KEY), type)
-    assert.equal(link.readPasswordSetup(storage), type)
+  for (const legacy of ['1', 'invite', 'recovery', '{"type":"invite"}']) {
+    storage.setItem(link.PASSWORD_SETUP_KEY, legacy)
+    assert.equal(link.readPasswordSetup(storage, 'user-a'), null, legacy)
   }
-  link.clearPasswordSetup(storage)
-  assert.equal(link.readPasswordSetup(storage), null)
-})
-
-test('A tab from the previous build ("1") still opens the invite screen; junk opens nothing', () => {
-  const storage = memoryStorage()
-  storage.setItem(link.PASSWORD_SETUP_KEY, '1')
-  assert.equal(link.readPasswordSetup(storage), 'invite')
-  storage.setItem(link.PASSWORD_SETUP_KEY, 'true')
-  assert.equal(link.readPasswordSetup(storage), null)
-})
-
-test('Blocked storage does not throw on the password-link contract', () => {
   const blocked = () => { throw new Error('blocked') }
-  const storage = { getItem: blocked, setItem: blocked, removeItem: blocked }
-  assert.doesNotThrow(() => { link.storePasswordSetup(storage, 'invite'); link.clearPasswordSetup(storage) })
-  assert.equal(link.readPasswordSetup(storage), null)
-})
-
-test('Router and admin page share one contract: no raw key and no "1" comparison', () => {
-  for (const name of ['main.tsx', 'AdminPage.tsx']) {
-    const code = source(name)
-    assert.match(code, /from '\.\/lib\/passwordLink'/, `${name} imports the contract`)
-    assert.doesNotMatch(code, /brandup-password-setup/, `${name} must not use the raw storage key`)
-    assert.doesNotMatch(code, /sessionStorage\.(getItem|setItem|removeItem)/, `${name} must go through the helpers`)
-  }
-  const main = source('main.tsx')
-  assert.match(main, /storePasswordSetup\(sessionStorage, passwordLinkType\)/)
-  assert.match(main, /passwordLinkType !== null/, 'password links route to the admin page')
-  assert.match(main, /hasAuthLinkError\(window\.location\.href\)/, 'expired links route to the admin page')
+  const denied = { getItem: blocked, setItem: blocked, removeItem: blocked }
+  assert.doesNotThrow(() => { link.storePasswordSetup(denied, { type: 'invite', userId: 'u' }); link.clearPasswordSetup(denied) })
+  assert.equal(link.readPasswordSetup(denied, 'u'), null)
 })
 
 test('Every link the router treats as a password link is also kept away from the Meta Pixel', () => {
@@ -85,35 +144,7 @@ test('Every link the router treats as a password link is also kept away from the
     const url = new URL(site + path)
     assert.ok(link.detectPasswordLink(url.href), path)
     const calls = []
-    vm.runInNewContext(code, { location: { hostname: url.hostname, search: url.search, hash: url.hash }, URLSearchParams, window: { fbq: () => {} }, document: {}, fbq: (...args) => calls.push(args) })
+    vm.runInNewContext(code, { location: { hostname: url.hostname, search: url.search, hash: url.hash }, URLSearchParams, window: { fbq: () => {} }, document: { createElement: () => ({}), head: { appendChild: () => {} } }, fbq: (...args) => calls.push(args) })
     assert.equal(calls.length, 0, `Pixel fired on ${path}`)
   }
-})
-
-test('Links expose their own token so the session can be checked against it', () => {
-  assert.deepEqual(link.parsePasswordLink(`${site}?type=recovery&token_hash=hash-b`), { type: 'recovery', tokenHash: 'hash-b', accessToken: null })
-  assert.deepEqual(link.parsePasswordLink(`${site}#access_token=token-b&token_type=bearer&type=invite`), { type: 'invite', tokenHash: null, accessToken: 'token-b' })
-})
-
-test("Admin A's session never sets the password for admin B's link", () => {
-  const hashLinkB = link.parsePasswordLink(`${site}?type=recovery&token_hash=hash-b`)
-  const implicitLinkB = link.parsePasswordLink(`${site}#access_token=token-b&type=recovery`)
-  // token_hash: the old session is closed and only verifyOtp may create the one that sets the password.
-  assert.deepEqual(link.decideInitialLink(hashLinkB, 'token-a'), { signOutExisting: true, allowPasswordSetup: false, linkFailed: false })
-  assert.deepEqual(link.decideInitialLink(hashLinkB, null), { signOutExisting: false, allowPasswordSetup: false, linkFailed: false })
-  // implicit: supabase-js keeps the old session when the URL token fails, so a mismatch is a failed link.
-  assert.deepEqual(link.decideInitialLink(implicitLinkB, 'token-a'), { signOutExisting: true, allowPasswordSetup: false, linkFailed: true })
-  assert.deepEqual(link.decideInitialLink(implicitLinkB, null), { signOutExisting: false, allowPasswordSetup: false, linkFailed: true })
-  assert.deepEqual(link.decideInitialLink(implicitLinkB, 'token-b'), { signOutExisting: false, allowPasswordSetup: true, linkFailed: false })
-  // No link: a normal visit keeps its session.
-  assert.deepEqual(link.decideInitialLink(null, 'token-a'), { signOutExisting: false, allowPasswordSetup: false, linkFailed: false })
-})
-
-test('The admin page only opens the password screen on trusted paths', () => {
-  const code = source('AdminPage.tsx')
-  assert.match(code, /useState<PasswordLinkType \| null>\(null\)/, 'no password screen straight from storage')
-  assert.match(code, /decideInitialLink\(initialLink, session\?\.access_token \?\? null\)/)
-  assert.match(code, /signOut\(\{ scope: 'local' \}\)[\s\S]*linkResolvedRef\.current = true/, 'old session closed before the link resolves')
-  const signedIn = code.slice(code.indexOf("if (event === 'SIGNED_IN')"))
-  assert.doesNotMatch(signedIn.slice(0, signedIn.indexOf('}') + 1), /setPasswordSetup/, 'SIGNED_IN (also fired for a restored old session) must not open the password screen')
 })

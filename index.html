@@ -13,7 +13,12 @@
       // Meta Pixel, only on the live public site (never on the lead dashboard or local tests), and never on a
       // Supabase auth link (invite/recovery): its token_hash/access_token would ride to Meta with the PageView.
       var buQuery = new URLSearchParams(location.search), buHash = location.hash;
-      var buAuth = buQuery.has('token_hash') || buQuery.has('access_token') || /(^|[#&])(access_token|refresh_token|token_hash)=/.test(buHash) || /[?&#]type=(invite|recovery|signup|magiclink)(&|$)/i.test(location.search + buHash);
+      // A bare type= is not an auth link (it can be a campaign parameter); the token or error is.
+      var buAuth = buQuery.has('token_hash') || buQuery.has('access_token') || buQuery.has('error_code') || /(^|[#&])(access_token|refresh_token|token_hash|error_code)=/.test(buHash);
+      if (buAuth) {
+        // Belt and braces: nothing loaded or navigated from an auth URL carries it as referrer.
+        var buMeta = document.createElement('meta'); buMeta.name = 'referrer'; buMeta.content = 'no-referrer'; document.head.appendChild(buMeta);
+      }
       if (location.hostname === 'brandupadvisory.com' && buQuery.get('admin') !== '1' && !buHash.toLowerCase().startsWith('#/admin') && !buAuth) {
         !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
         n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;

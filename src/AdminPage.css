@@ -161,6 +161,20 @@
   text-align: center;
 }
 
+/* Reset form: success and error regions are both always mounted (live regions). */
+.admin-form-feedback {
+  display: grid;
+  margin-top: -4px;
+}
+
+.admin-form-feedback > p {
+  margin: 0;
+}
+
+.admin-form-feedback > .admin-form-success:not(:empty) + .admin-form-error {
+  min-height: 0;
+}
+
 .admin-link-button {
   justify-self: center;
   padding: 4px 8px;

@@ -22,9 +22,15 @@ export function captureAttribution() {
     if (!Object.keys(click).length && (Object.keys(readAttribution()).length || /^\/(thank-you|privacy)\/?$/.test(window.location.pathname))) return
     const attribution: Attribution = { ...click,
       landing_page: `${window.location.pathname}${window.location.search}`.slice(0, 500),
-      referrer: document.referrer.slice(0, 500) || undefined }
+      referrer: safeReferrer(document.referrer) }
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ at: Date.now(), attribution }))
   } catch { /* The enquiry still works when browser storage is blocked. */ }
+}
+
+// A referrer from a Supabase auth link would store its token in leads.referrer.
+export function safeReferrer(referrer: string): string | undefined {
+  if (/[?&#](token_hash|access_token|refresh_token)=/i.test(referrer)) return undefined
+  return referrer.slice(0, 500) || undefined
 }
 
 export function readAttribution(): Attribution {

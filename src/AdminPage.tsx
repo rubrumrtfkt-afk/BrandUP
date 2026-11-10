@@ -13,15 +13,14 @@ import './AdminPage.css'
 
 import LeadBoard from './LeadBoard'
 import type { Lead, LeadStatus } from './lib/leadboard'
+import { createPasswordFlow } from './lib/passwordFlow'
 import {
+  canSetPassword,
   clearPasswordSetup,
-  decideInitialLink,
   hasAuthLinkError,
   parsePasswordLink,
-  readPasswordSetup,
-  storePasswordSetup,
 } from './lib/passwordLink'
-import type { PasswordLinkType } from './lib/passwordLink'
+import type { KeyValueStore, PasswordLinkType, PasswordSetup } from './lib/passwordLink'
 
 // Read before Supabase finishes parsing the URL, because it clears the auth hash.
 const initialUrl = new URL(window.location.href)
@@ -29,6 +28,21 @@ const initialLink = parsePasswordLink(initialUrl.href)
 const expiredLinkMessage =
   'This link has expired or was already used. Enter your email to get a new reset link.'
 const initialLinkError = hasAuthLinkError(initialUrl.href) ? expiredLinkMessage : ''
+
+// A token_hash left in the address bar rides in the referrer of the next navigation
+// ("Back to website", where attribution and the Pixel read it) and stays in history.
+// verifyOtp gets it from memory; supabase-js never reads it from the URL.
+if (initialLink?.tokenHash) {
+  window.history.replaceState(null, '', '/?admin=1')
+}
+
+// Lazy, so a browser that blocks storage cannot crash the module (helpers catch the throw).
+const tabStorage: KeyValueStore = {
+  getItem: key => window.sessionStorage.getItem(key),
+  setItem: (key, value) => window.sessionStorage.setItem(key, value),
+  removeItem: key => window.sessionStorage.removeItem(key),
+}
+const passwordFlow = createPasswordFlow(supabase.auth, initialLink, tabStorage)
 
 function AdminPage() {
   const [authReady, setAuthReady] = useState(false)
@@ -42,10 +56,11 @@ function AdminPage() {
   const [isSendingReset, setIsSendingReset] = useState(false)
   const [pendingInviteToken] = useState(() => initialLink?.tokenHash ?? '')
   const [pendingLinkType] = useState<PasswordLinkType>(() => initialLink?.type ?? 'invite')
-  // Set only on trusted paths: the session the link produced, or a reload of that same flow.
-  const [passwordSetup, setPasswordSetup] = useState<PasswordLinkType | null>(null)
-  // While a password link is being resolved, session events belong to the previous session.
-  const linkResolvedRef = useRef(initialLink === null)
+  // Set only on trusted paths (see passwordFlow.ts) and bound to the link's account.
+  const [passwordSetup, setPasswordSetup] = useState<PasswordSetup | null>(null)
+  const passwordSetupRef = useRef<PasswordSetup | null>(null)
+  const loginFormRef = useRef<HTMLFormElement>(null)
+  const loginViewChangedRef = useRef(false)
   const [loginView, setLoginView] = useState<'signIn' | 'forgot'>(() =>
     initialLinkError ? 'forgot' : 'signIn',
   )
@@ -107,39 +122,20 @@ function AdminPage() {
     document.title = 'Lead Dashboard | BrandUp'
 
     const initializeSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      const result = await passwordFlow.init()
 
-      const decision = decideInitialLink(initialLink, session?.access_token ?? null)
-
-      if (decision.linkFailed) {
-        clearPasswordSetup(sessionStorage)
+      if (result.linkFailed) {
         setLoginView('forgot')
         setResetError(expiredLinkMessage)
       }
 
-      if (decision.signOutExisting) {
-        // Local scope: end this browser's session only, so the link's own token decides
-        // whose password changes. That admin's other devices stay signed in.
-        const { error } = await supabase.auth.signOut({ scope: 'local' })
-        if (error) {
-          setInvitationError('Your previous session could not be closed. Reload this page and try the link again.')
-        }
-      }
+      if (result.session) {
+        setSessionEmail(result.session.user.email ?? null)
 
-      linkResolvedRef.current = true
-      const usableSession = decision.signOutExisting || decision.linkFailed ? null : session
-
-      if (usableSession) {
-        setSessionEmail(usableSession.user.email ?? null)
-        // With a link in the URL, decideInitialLink only keeps the session the link created.
-        const pendingSetup = initialLink ? initialLink.type : readPasswordSetup(sessionStorage)
-
-        if (pendingSetup) {
-          setPasswordSetup(pendingSetup)
+        if (result.passwordSetup) {
+          setPasswordSetup(result.passwordSetup)
         } else {
-          await loadDashboard(usableSession.user.id, usableSession.user.email ?? null)
+          await loadDashboard(result.session.user.id, result.session.user.email ?? null)
         }
       }
 
@@ -151,29 +147,30 @@ function AdminPage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
+      const action = passwordFlow.onAuthEvent(event, session, passwordSetupRef.current)
+
+      if (action.kind === 'ignore') {
+        return
+      }
+
+      if (action.kind === 'signedOut') {
         setSessionEmail(null)
         setIsAuthorized(false)
         setLeads([])
+        setPasswordSetup(null)
         setAuthReady(true)
         return
       }
 
-      if (!linkResolvedRef.current) {
-        return
-      }
+      setSessionEmail(action.session.user.email ?? null)
+      setAuthReady(true)
 
-      if (event === 'PASSWORD_RECOVERY') {
-        storePasswordSetup(sessionStorage, 'recovery')
-        setSessionEmail(session.user.email ?? null)
-        setPasswordSetup('recovery')
-        setAuthReady(true)
-        return
-      }
-
-      if (event === 'SIGNED_IN') {
-        setSessionEmail(session.user.email ?? null)
-        setAuthReady(true)
+      if (action.kind === 'passwordSetup') {
+        setPasswordSetup(action.setup)
+      } else if (!action.keepPasswordSetup) {
+        // Another account signed in (e.g. in another tab): the password step on screen is not theirs.
+        setPasswordSetup(null)
+        void loadDashboard(action.session.user.id, action.session.user.email ?? null)
       }
     })
 
@@ -183,12 +180,23 @@ function AdminPage() {
     }
   }, [])
 
+  useEffect(() => {
+    passwordSetupRef.current = passwordSetup
+  }, [passwordSetup])
+
+  // Moving between sign-in and reset swaps the whole form: put focus on its first field.
+  useEffect(() => {
+    if (!loginViewChangedRef.current) return
+    loginViewChangedRef.current = false
+    loginFormRef.current?.querySelector('input')?.focus()
+  }, [loginView])
+
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsSigningIn(true)
     setLoginError('')
     // A typed password is not a link flow: a leftover flag must not open the password screen.
-    clearPasswordSetup(sessionStorage)
+    clearPasswordSetup(tabStorage)
     setPasswordSetup(null)
 
     const formData = new FormData(event.currentTarget)
@@ -234,11 +242,10 @@ function AdminPage() {
       { redirectTo: `${window.location.origin}/?admin=1` },
     )
 
-    if (error) {
-      if (
-        error.code === 'over_email_send_rate_limit' ||
-        error.code === 'over_request_rate_limit'
-      ) {
+    // over_email_send_rate_limit is per address: answering it differently would tell
+    // whether the email has an account, so it gets the same neutral message as success.
+    if (error && error.code !== 'over_email_send_rate_limit') {
+      if (error.code === 'over_request_rate_limit') {
         setResetError('Too many reset requests. Wait a few minutes and try again.')
       } else {
         setResetError('The reset link could not be sent. Please try again.')
@@ -253,6 +260,7 @@ function AdminPage() {
   }
 
   const showLoginView = (view: 'signIn' | 'forgot') => {
+    loginViewChangedRef.current = true
     setLoginView(view)
     setLoginError('')
     setResetError('')
@@ -266,7 +274,6 @@ function AdminPage() {
   const handleAcceptInvitation = async () => {
     setIsAcceptingInvitation(true)
     setInvitationError('')
-    storePasswordSetup(sessionStorage, pendingLinkType)
 
     const { data, error } = await supabase.auth.verifyOtp({
       token_hash: pendingInviteToken,
@@ -274,7 +281,6 @@ function AdminPage() {
     })
 
     if (error || !data.session) {
-      clearPasswordSetup(sessionStorage)
       setInvitationError(
         pendingLinkType === 'recovery'
           ? 'This reset link is no longer valid. Request a new one from the sign-in page.'
@@ -284,10 +290,8 @@ function AdminPage() {
       return
     }
 
-    // The token is spent: drop it from the URL so a reload resumes this session's password step.
-    window.history.replaceState({}, '', '/?admin=1')
     setSessionEmail(data.session.user.email ?? null)
-    setPasswordSetup(pendingLinkType)
+    setPasswordSetup(passwordFlow.acceptVerifiedLink(data.session))
     setIsAcceptingInvitation(false)
   }
 
@@ -312,6 +316,23 @@ function AdminPage() {
       return
     }
 
+    const saveFailedMessage =
+      passwordSetup?.type === 'recovery'
+        ? 'Your password could not be saved. Request a new reset link.'
+        : 'Your password could not be saved. Request a new invitation.'
+
+    // Backstop: if the live session is no longer the link's account (another tab signed
+    // in as someone else), never change that account's password.
+    const {
+      data: { session: liveSession },
+    } = await supabase.auth.getSession()
+
+    if (!canSetPassword(passwordSetup, liveSession?.user.id ?? null)) {
+      setPasswordError(saveFailedMessage)
+      setIsSettingPassword(false)
+      return
+    }
+
     const { data, error } = await supabase.auth.updateUser({ password })
 
     if (error || !data.user) {
@@ -320,18 +341,14 @@ function AdminPage() {
       } else if (error?.code === 'weak_password') {
         setPasswordError('This password is too weak. Try a longer one.')
       } else {
-        setPasswordError(
-          passwordSetup === 'recovery'
-            ? 'Your password could not be saved. Request a new reset link.'
-            : 'Your password could not be saved. Request a new invitation.',
-        )
+        setPasswordError(saveFailedMessage)
       }
 
       setIsSettingPassword(false)
       return
     }
 
-    clearPasswordSetup(sessionStorage)
+    clearPasswordSetup(tabStorage)
     window.history.replaceState({}, '', '/?admin=1')
     setPasswordSetup(null)
     setIsSettingPassword(false)
@@ -370,7 +387,7 @@ function AdminPage() {
   if (pendingInviteToken && !sessionEmail) {
     return (
       <main className="admin-login-page">
-        <a className="admin-back-link" href="/">
+        <a className="admin-back-link" href="/" rel="noreferrer">
           <ArrowLeft aria-hidden="true" size={18} />
           Back to website
         </a>
@@ -424,7 +441,7 @@ function AdminPage() {
   if (!sessionEmail) {
     return (
       <main className="admin-login-page">
-        <a className="admin-back-link" href="/">
+        <a className="admin-back-link" href="/" rel="noreferrer">
           <ArrowLeft aria-hidden="true" size={18} />
           Back to website
         </a>
@@ -445,7 +462,7 @@ function AdminPage() {
           </p>
 
           {loginView === 'forgot' ? (
-            <form className="admin-login-form" onSubmit={handleRequestReset}>
+            <form className="admin-login-form" onSubmit={handleRequestReset} ref={loginFormRef}>
               <label>
                 Email
                 <input
@@ -464,15 +481,15 @@ function AdminPage() {
                 )}
                 {isSendingReset ? 'Sending link...' : 'Send reset link'}
               </button>
-              {resetMessage ? (
+              {/* Both live regions stay mounted so screen readers announce text changes. */}
+              <div className="admin-form-feedback">
                 <p className="admin-form-success" role="status">
                   {resetMessage}
                 </p>
-              ) : (
                 <p className="admin-form-error" role="alert">
-                  {resetError}
+                  {resetMessage ? '' : resetError}
                 </p>
-              )}
+              </div>
               <button
                 className="admin-link-button"
                 onClick={() => showLoginView('signIn')}
@@ -482,7 +499,7 @@ function AdminPage() {
               </button>
             </form>
           ) : (
-            <form className="admin-login-form" onSubmit={handleLogin}>
+            <form className="admin-login-form" onSubmit={handleLogin} ref={loginFormRef}>
               <label>
                 Email
                 <input
@@ -532,7 +549,7 @@ function AdminPage() {
   if (passwordSetup) {
     return (
       <main className="admin-login-page">
-        <a className="admin-back-link" href="/">
+        <a className="admin-back-link" href="/" rel="noreferrer">
           <ArrowLeft aria-hidden="true" size={18} />
           Back to website
         </a>
@@ -543,13 +560,13 @@ function AdminPage() {
             <ShieldCheck aria-hidden="true" size={26} />
           </div>
           <p className="admin-eyebrow">
-            {passwordSetup === 'recovery' ? 'Password reset' : 'Invitation accepted'}
+            {passwordSetup.type === 'recovery' ? 'Password reset' : 'Invitation accepted'}
           </p>
           <h1 id="admin-password-title">
-            {passwordSetup === 'recovery' ? 'Choose a new password' : 'Create your password'}
+            {passwordSetup.type === 'recovery' ? 'Choose a new password' : 'Create your password'}
           </h1>
           <p className="admin-login-copy">
-            {passwordSetup === 'recovery'
+            {passwordSetup.type === 'recovery'
               ? `Set a new password for ${sessionEmail} to get back into the lead dashboard.`
               : `Set a secure password for ${sessionEmail} to finish activating your agency account.`}
           </p>
@@ -589,7 +606,7 @@ function AdminPage() {
               )}
               {isSettingPassword
                 ? 'Saving password...'
-                : passwordSetup === 'recovery'
+                : passwordSetup.type === 'recovery'
                   ? 'Save new password'
                   : 'Activate secure access'}
             </button>

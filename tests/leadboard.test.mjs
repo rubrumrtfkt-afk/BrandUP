@@ -73,10 +73,12 @@ test('Blocked browser storage does not throw', () => {
 test('Pixel runs only on production public routes, never on admin or Supabase auth links', () => {
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')
   const code = html.match(/<script>([\s\S]*?)<\/script>/)[1]
-  for (const [hostname, search, hash, expected] of [['localhost', '', '', false], ['brandupadvisory.com', '?admin=1', '', false], ['brandupadvisory.com', '?%61dmin=1', '', false], ['brandupadvisory.com', '', '#/admin', false], ['brandupadvisory.com', '?token_hash=abc&type=invite', '', false], ['brandupadvisory.com', '?type=recovery&token_hash=abc', '', false], ['brandupadvisory.com', '', '#access_token=abc&type=recovery', false], ['brandupadvisory.com', '?utm_source=facebook&type=a', '', true], ['brandupadvisory.com', '', '', true]]) {
-    const calls = []; const context = { location: { hostname, search, hash }, URLSearchParams, window: { fbq: () => {} }, document: {}, fbq: (...args) => calls.push(args) }
+  for (const [hostname, search, hash, expected] of [['localhost', '', '', false], ['brandupadvisory.com', '?admin=1', '', false], ['brandupadvisory.com', '?%61dmin=1', '', false], ['brandupadvisory.com', '', '#/admin', false], ['brandupadvisory.com', '?token_hash=abc&type=invite', '', false], ['brandupadvisory.com', '?type=recovery&token_hash=abc', '', false], ['brandupadvisory.com', '', '#access_token=abc&type=recovery', false], ['brandupadvisory.com', '?utm_source=facebook&type=a', '', true], ['brandupadvisory.com', '?utm_source=x&type=signup', '', true], ['brandupadvisory.com', '', '#error=access_denied&error_code=otp_expired', false], ['brandupadvisory.com', '?error_code=otp_expired', '', false], ['brandupadvisory.com', '', '', true]]) {
+    const calls = [], metas = []; const context = { location: { hostname, search, hash }, URLSearchParams, window: { fbq: () => {} }, document: { createElement: () => ({}), head: { appendChild: meta => metas.push(meta) } }, fbq: (...args) => calls.push(args) }
     vm.runInNewContext(code, context)
     assert.equal(calls.length > 0, expected)
+    const authUrl = /token_hash|access_token|error_code/.test(search + hash)
+    assert.deepEqual(metas, authUrl ? [{ name: 'referrer', content: 'no-referrer' }] : [], `referrer policy on ${search}${hash}`)
     assert.equal(calls.some(args => args[1] === 'Lead'), false)
   }
 })
@@ -120,4 +122,14 @@ test('Revenue grade filters combine with existing channel and status filters', (
   assert.deepEqual(board.filterLeads(leads, filters, now), [leads[0]])
   assert.deepEqual(board.filterLeads(leads, { ...filters, grade: 'unclassified' }, now), [leads[3]])
   assert.equal(board.filterLeads(leads, { ...filters, channel: 'meta' }, now).length, 0)
+})
+test('A referrer carrying a Supabase token is never stored for the lead', () => {
+  browser('?utm_source=facebook'); document.referrer = 'https://brandupadvisory.com/?admin=1&type=recovery&token_hash=secret'
+  attribution.captureAttribution()
+  assert.equal(attribution.readAttribution().referrer, undefined)
+  assert.equal(attribution.readAttribution().utm_source, 'facebook')
+  for (const leaked of ['https://brandupadvisory.com/#access_token=a&type=invite', 'https://brandupadvisory.com/?refresh_token=r'])
+    assert.equal(attribution.safeReferrer(leaked), undefined, leaked)
+  browser('?utm_source=facebook'); attribution.captureAttribution()
+  assert.equal(attribution.readAttribution().referrer, 'https://www.instagram.com/')
 })
