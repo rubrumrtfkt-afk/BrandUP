@@ -58,7 +58,7 @@ export function Proto() {
             <p className="lede" data-dark="16" data-in="voice-body">{form.lede}</p>
           </div>
           {/* v55e (owner: the dotted tray under the form read as a box and competed with the horizon): no orla here */}
-          <LeadForm id="diagnostic" />
+          <LeadForm id="diagnostic" success={form.successDiagnostic} />
           <div className="horizon" data-horizon="diagnostic" data-beam="96" aria-hidden="true" />
         </section>
         <Night />
@@ -248,10 +248,14 @@ function probed(sender: LeadSender): LeadSender {
     return sender(row, signal)
   }
 }
+/** wake the engine after the next paint (2 frames): the style change of this commit is then what it reads */
+function wakeAfterPaint() {
+  requestAnimationFrame(() => requestAnimationFrame(() => ticker.wake()))
+}
 // the light of the success: one beam per field converges on the button, then the button's arrow rises as the data
 const FX_BEAMS = LEAD_FIELDS.length
 
-function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; compact?: boolean }) {
+function LeadForm({ id, orla, compact = false, success = form.success }: { id: string; orla?: OrlaId; compact?: boolean; success?: string }) {
   const formRef = useRef<HTMLFormElement>(null)
   const orlaRef = useRef<HTMLCanvasElement>(null)
   const fxRef = useRef<HTMLDivElement>(null)
@@ -266,6 +270,8 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
   const [touched, setTouched] = useState<Partial<Record<FieldKey, boolean>>>({})
   const [status, setStatus] = useState<SendState>('idle')
   const [failure, setFailure] = useState<'network' | 'server' | null>(null)
+  // the button's light (the engine's ?btn=field halo, read from data-act) goes out when its arrow leaves (juri-v56 §2)
+  const [actOff, setActOff] = useState(false)
   // synchronous guard: a double click lands twice before React re-renders the disabled button (the module guards the page)
   const pendingRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -274,9 +280,10 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
   const errorOf = (k: FieldKey) => (touched[k] ? validateLeadField(k, values[k]) : null)
   const ready = LEAD_FIELDS.every((k) => validateLeadField(k, values[k]) === null)
   useEffect(() => {
-    bus.beams[id] = LEAD_FIELDS.map((k) => validateLeadField(k, values[k]) === null)
+    // on success the fields' light has converged into the button and left as the arrow: the beams go out
+    bus.beams[id] = LEAD_FIELDS.map((k) => status !== 'sent' && validateLeadField(k, values[k]) === null)
     ticker.wake()
-  }, [id, values])
+  }, [id, values, status])
   useEffect(() => () => { delete bus.beams[id] }, [id])
   const set = (k: FieldKey, v: string) => {
     setValues((s) => ({ ...s, [k]: v }))
@@ -304,15 +311,17 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
       if (abortRef.current === controller) abortRef.current = null
     }
   }
+  useEffect(() => { if (actOff) wakeAfterPaint() }, [actOff])
   // the success light: measured before the first painted frame of `sent`, so every path starts where its element is
   useLayoutEffect(() => {
     if (status !== 'sent') return
     const f = formRef.current
     doneRef.current?.focus({ preventScroll: true }) // the button is about to hide: keep the focus on the answer
-    // the engine draws only when asked: once the button has faded (.6 + .28 s) its light must be redrawn away, or the last
-    // frame keeps a glow around nothing
-    const wake = setTimeout(() => ticker.wake(), reduced ? 0 : 960)
-    if (!f || reduced) return () => clearTimeout(wake)
+    // the engine draws only when asked: its halo around the button goes out with the arrow (.42 s; at once with reduced
+    // motion), and once the button has faded (.6 + .28 s) the engine is woken again AFTER the commit and the style change
+    // (2 frames), or its last frame keeps a light around nothing (juri-v56 §1)
+    const timers = [setTimeout(() => setActOff(true), reduced ? 0 : 420), setTimeout(wakeAfterPaint, reduced ? 0 : 900)]
+    if (!f || reduced) return () => timers.forEach(clearTimeout)
     const box = f.getBoundingClientRect()
     const at = (el: Element | null | undefined) => {
       const r = el?.getBoundingClientRect()
@@ -320,10 +329,15 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
     }
     const btn = at(f.querySelector('.submit .btn'))
     const arrow = at(f.querySelector('.submit .btn-arrow'))
-    const mark = at(f.querySelector('.done-mark'))
-    if (!btn || !arrow || !mark) return () => clearTimeout(wake)
+    const markEl = f.querySelector('.done-mark')
+    const mark = at(markEl)
+    if (!btn || !arrow || !mark) return () => timers.forEach(clearTimeout)
     f.style.setProperty('--px', `${(arrow.x - mark.x).toFixed(1)}px`)
     f.style.setProperty('--py', `${(arrow.y - mark.y).toFixed(1)}px`)
+    // the arrow starts at the size of the button's own arrow (≈ .25 of its resting size)
+    const arrowW = f.querySelector('.submit .btn-arrow')?.getBoundingClientRect().width ?? 10
+    // offsetWidth: the layout size, before the grow animation's starting scale is applied
+    f.style.setProperty('--ps', (arrowW / Math.max(1, f.querySelector<HTMLElement>('.done-pack')?.offsetWidth ?? 40)).toFixed(3))
     const beams = fxRef.current?.children
     LEAD_FIELDS.forEach((k, i) => {
       const src = at(k === 'revenue' ? f.querySelector('.revenue .blocks') : refs.current[k])
@@ -335,7 +349,7 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
       // the streak points along its own path (0deg = straight down)
       el.style.setProperty('--a', `${(Math.atan2(btn.x - x0, btn.y - y0) * -180 / Math.PI).toFixed(1)}deg`)
     })
-    return () => clearTimeout(wake)
+    return () => timers.forEach(clearTimeout)
   }, [status])
   const message = (k: FieldKey) => {
     const e = errorOf(k)
@@ -393,7 +407,7 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
         {/* copy.md: the network error sits above the button, the answers stay */}
         {status === 'error' && <p className="err submit-err" role="alert">{failure === 'server' ? form.serverError : form.networkError}</p>}
         <button className="btn" type="submit" disabled={status === 'sending'} aria-disabled={sent || undefined} aria-busy={status === 'sending' || undefined}
-          data-act={id} data-act-ready={ready ? 'true' : undefined} data-state={status}>
+          data-act={actOff ? undefined : id} data-act-ready={ready ? 'true' : undefined} data-state={status}>
           <BtnBody>{status === 'sending' ? form.sending : form.button}</BtnBody>
         </button>
         <p className="privacy" data-dark="12">{form.privacy} <a href="/privacy">{form.privacyLink}</a></p>
@@ -408,8 +422,14 @@ function LeadForm({ id, orla, compact = false }: { id: string; orla?: OrlaId; co
       <div className="lead-done" ref={doneRef} role="status" tabIndex={-1}>
         {sent && (
           <>
-            <svg className="done-mark" viewBox="12 11 16 21" width="10" height="13" aria-hidden="true"><path d="M20 13 L26 22 L14 22 Z" /><rect x="17.5" y="21" width="5" height="9" rx="2.5" /></svg>
-            <p className="done-text" data-dark={compact ? undefined : '12'}>{form.success}</p>
+            <span className="done-pack" aria-hidden="true">
+              <span className="done-trail" />
+              <svg className="done-mark" viewBox="12 11 16 21" width="44" height="58"><path d="M20 13 L26 22 L14 22 Z" /><rect x="17.5" y="21" width="5" height="9" rx="2.5" /></svg>
+            </span>
+            {/* one sentence per line (juri-v56 §4): the line never breaks between "Your" and "plan" */}
+            <p className="done-text" data-dark={compact ? undefined : '12'}>
+              {success.split(/(?<=\.)\s+/).map((line, i) => <span key={i} className="done-line">{i ? ' ' : ''}{line}</span>)}
+            </p>
             <p className="done-note">{form.protoNote}</p>
           </>
         )}

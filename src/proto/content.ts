@@ -32,6 +32,9 @@ export const form = {
   serverError: 'We couldn’t send this. Your answers are still here. Please try again.',
   // copy.md "Botão e estados", the success line (on the live site it is the /thank-you title; the prototype stays on the page)
   success: 'Thanks, your details are in. We’ll call within 5 minutes during business hours.',
+  // PROVISÓRIO (copy-director): the #diagnostic answer must not echo the section's lede ("We’ll call within 5 minutes"),
+  // juri-v56 §4; the final form keeps `success`
+  successDiagnostic: 'Thanks — you’re in. Your plan starts with one call.',
   // Prototype only: the simulated sender sends nothing. Not copy, a lab note shown under the confirmation.
   protoNote: 'Prototype: nothing was sent.',
 }
