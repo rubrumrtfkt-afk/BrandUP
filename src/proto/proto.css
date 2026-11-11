@@ -473,16 +473,33 @@ img.poster { object-fit: cover; }
   .blocks, .lead.compact .blocks { grid-template-columns: 1fr 1fr; }
   .horizon { bottom: 40px; left: 25%; right: 25%; }
   .night { height: calc(var(--tela) * 1.2); }
-  .moon-path { left: 200px; right: auto; width: 130px; top: 172px; height: 56px; } /* §6.5: the moon's centre runs x 200 → 330 */
-  .moon svg { width: 26px; height: 26px; }
-  .moon { left: auto; right: calc(100% - 13px); top: -13px; grid-auto-flow: column; align-items: center; }
-  .moon-t { order: -1; } /* the hour sits left of the moon: the box never passes x 370 */
-  .shift-office { left: var(--m); right: var(--m); width: auto; top: 270px; bottom: auto; }
-  .desks { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 12px; row-gap: 14px; margin-top: 10px; } /* fix v57.1: ≥ 12 px between columns, each plaque wraps inside its own width now */
+  /* jury v59: the §6.5 arc (x 200→330 inside a 56-px band fixed at top:172) was tuned for an empty strip; the bed
+     now lives there (10/11's fix for the dono's 1st complaint), so the moon crossed "18:00"/"19:21" and sat on
+     "overnight" (0/17 → 39/40 of the sampled frames). It gets its own strip instead: the first item of .shift's
+     flex flow (order: -1), sized to the icon + hour and nothing more, with the SAME flex gap already separating
+     every other row below it — never guessed, never able to land on the bed. nightShift.ts's place() stops moving
+     it at this width (no more arc): only the hour still ticks, "the night" still visibly "walking" in the numbers. */
+  .moon-path { position: relative; order: -1; margin: 0 var(--m) -10px; width: auto; height: 22px; top: auto; left: auto; right: auto; }
+  .moon svg { width: 20px; height: 20px; }
+  .moon { position: absolute; left: auto; right: 0; top: 0; grid-auto-flow: column; align-items: center; gap: 6px; }
+  .moon-t { order: -1; } /* the hour sits left of the moon */
+  /* owner 10/11: the bed ("You, asleep") sat BELOW the model, fixed to the stage's own bottom edge while the desks
+     grew down from a fixed top — two independent anchors that closed in on each other and crossed when --tela froze
+     shorter than their combined content. Normal flow instead: the bed rises ABOVE every desk (the dot still climbs
+     from a desk to it, now upward), with its own measured gap to the title (nightShift.ts setNightGap, the same
+     idiom as the office's K2 FLIP) and a flex gap to the row below; too short a device clips the last row (the
+     stage's own overflow: hidden) rather than overlapping a line of text. */
+  /* jury v59b (§5 item 2, trivial): the moon's strip pushed the desks down ~12 px; the last row passed 1.6–3.2 px of
+     the stage's foot at 375×667. The flex gap and the trailing padding both had more room to give at a short vh
+     than they needed (they were still hitting their clamp ceiling at 844, which has plenty of slack) — tightening
+     both ceilings recovers it, same idea as the fit at 390×844/740, not a new technique. */
+  .shift { display: flex; flex-direction: column; align-items: stretch; gap: clamp(16px, 4vh, 20px); padding: var(--night-gap-top, 180px) 0 clamp(8px, 2.5vh, 12px); }
+  .shift-office { position: static; order: 1; margin: 0 var(--m); width: auto; }
+  .desks { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 12px; row-gap: 12px; margin-top: 8px; } /* fix v57.1: ≥ 12 px between columns, each plaque wraps inside its own width now */
   .desk:nth-child(-n+3) { padding-left: 0; }
-  .desk:nth-child(-n+3) .fig, .fig { width: 88px; height: 88px; } /* §6.2: 88 px, no perspective */
+  .desk:nth-child(-n+3) .fig, .fig { width: 80px; height: 80px; } /* §6.2: 80 px, no perspective; v58.1 (owner 10/11, the bed moved above the desks): 8 px smaller so both rows clear a short 375×667 screen under the bed's new room */
   .beam { height: 48px; }
-  .desks { row-gap: 14px; margin-top: 10px; }
+  .desks { row-gap: 12px; margin-top: 8px; }
   .dname { font-size: var(--type-label-size); }
   .dname .long { display: none; }
   .dname .short { display: inline; }
@@ -490,8 +507,7 @@ img.poster { object-fit: cover; }
   .dh { display: block; }
   .dline.prev { opacity: 0; }
   .dboard { height: calc(var(--type-label-size) * 1.25 + var(--type-lead-size, 18px) * 1.25 * 2 + 2px); }
-  .home { left: var(--m); right: var(--m); width: auto; top: auto; bottom: 28px; padding: 14px 0 0; border-left: 0; border-top: 1px solid rgb(244 241 248 / .08); grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 16px; row-gap: 4px; align-items: center; } /* taste-skill-ignore: brief-v4.2 §5.4, the Office/Home wire turns horizontal at 390 */
-  .home { grid-template-columns: auto auto 1fr; }
+  .home { position: static; order: 0; margin: 0 var(--m); padding: 0; border: 0; grid-template-columns: auto auto 1fr; grid-template-rows: auto auto; column-gap: 16px; row-gap: 4px; align-items: center; } /* taste-skill-ignore: brief-v4.2 §5.4, the Office/Home wire turns horizontal at 390 */
   .home .place { grid-row: 1 / 3; grid-column: 1; align-self: center; }
   .home .sleeper { grid-row: 1 / 3; grid-column: 2; }
   .home .tally { grid-row: 1; grid-column: 3; }
@@ -524,8 +540,15 @@ img.poster { object-fit: cover; }
   .you-h span { display: inline; max-width: none; }
   .you-b { text-align: left; }
   .phone { top: calc(68px + 2.3em + 56px); width: 300px; padding: 8px; border-radius: 32px; transform: translateX(-50%); }
-  .screen { min-height: 0; height: 430px; padding: 18px 14px 12px; border-radius: 26px; }
+  .screen { min-height: 0; height: 430px; padding: 14px 14px 8px; border-radius: 26px; }
   .phone-prog { left: 14px; right: 14px; }
+  /* jury v59 (§6.7, "o card come a altura"): on the dono's real window the fan under the card read shallow (83 px at
+     390×740). These 4 are whitespace only (no font, no color, no structure change) — the card's own box shrinks by
+     exactly what they give back, so the longest order (2-line question) is no tighter a fit than it already was. */
+  .order { gap: 8px; }
+  .actions { margin-top: 2px; }
+  .preview { padding: 8px 12px; }
+  .phone-status { padding-top: 8px; }
   /* §4.4 the green on a phone: the Approve fill takes the field button's 390 look (silk only as a 3-px rim, mint label on
      the dark): a phone-wide mint fill alone was 4.3 % of the screen (greenPct 3.5 %) */
   .btn-field .approve .approve-fill { border: 3px solid transparent; color: var(--mint); background: linear-gradient(#0E0D12, #0E0D12) padding-box, #58F6B1 url(./assets/silk-mint.png) 0 0 / 240px 96px border-box; } /* taste-skill-ignore: a flat dark fill clipped to the padding box over the silk rim, not a gradient */
@@ -533,7 +556,13 @@ img.poster { object-fit: cover; }
   /* §4.4 the green on a phone: the ring of energy is a 2-px dotted line at 40 % */
   .phone-energy { inset: -6px; padding: 2px; border-radius: 38px; animation-name: energy-s; }
   @keyframes energy-s { 0% { opacity: 0; } 15%, 80% { opacity: .4; } 100% { opacity: 0; } }
-  .scroll-hint { bottom: 3vh; }
+  /* jury v59 (bloqueante 2): "Scroll to approve." sat at a fixed 3vh off the stage's foot — the same band the agent's
+     label now reaches on a tall viewport, once the leque's deeper base (10/11) pushed the label down with it. The
+     card's own box is the one thing at a FIXED px here regardless of --tela (.phone top + .screen height + its own
+     16 px of padding = card bottom, always 521px, layout.ts's gap = 22px to the leque's vertex at 543px), so the
+     hint moves into that gap instead of chasing a label whose height varies with the screen — it can never reach
+     there. A tighter line-height (not the font itself) is the margin inside the gap's own 22px. */
+  .scroll-hint { bottom: auto; top: 524px; line-height: 1; }
   .why { display: none; }
   :is(.reduced, .no-js) .phone-static { grid-template-columns: 1fr; }
   .faq { padding-top: 72px; padding-bottom: 40px; }
@@ -676,8 +705,13 @@ html:not(.gl-on) [data-cursor] > .testi-wire::after { transition: clip-path .24s
   .brand svg { width: 30px; height: 30px; } /* v54: 36 × 390-scale (was 24) */
   .hero .lede { max-width: none; margin-top: 18px; }
   .you-h { top: 68px; }
-  .phone { top: 150px; } /* brief §9.1 asked 124: the H2 takes 2 lines at 390 (36 px) and the phone covered "the final word." (inspect v51) */
-  .screen { height: 384px; }
+  /* jury v59: measured — "You have the final word." sets as ONE line at 375 and 390 (bottom ≈ 104px), not the two
+     the old comment assumed (a stale note from a longer draft of the copy).
+     jury (11/11): 112 px (8 px of air) read as touching; 129 px clears the full 24 px the dono asked (measured
+     104.0–104.4 across engines/widths), title to card. */
+  .phone { top: 129px; }
+  .screen { height: 376px; } /* fix: 360 overflowed the box for the 2-line "top" orders (bookkeeper's meta line wraps),
+    pushing .phone-status past its own padding-bottom and against the card's rounded corner (measured 15.34 px over) */
   .nn:not([data-on="true"]) { display: none; }
   .testi { display: flex; flex-direction: column; padding: 104px 0; }
   .testi-h { margin: 0 var(--m) 20px; }

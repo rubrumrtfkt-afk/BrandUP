@@ -414,6 +414,20 @@ export async function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions
       crest = -0.08 + (prog / 0.86) * 1.12
       conv = smooth(0.86, 1, prog)
       target = smooth(vh * 0.95, vh * 0.35, nightR.y0) * (nightR.y1 > 0 ? 1 : 0)
+      // jury (11/11): on a phone the bed sits ABOVE the desks now (10/11's fix), filling nearly the whole pinned
+      // screen. The dense band the jury found isn't the crest sweep (that moves with the scroll and stayed put) —
+      // it is the grid's farthest row (gz = 1, the shader's zFar): perspective alone packs it tight on screen, at a
+      // position that only moves with gridY (≈ 0 for nearly all of the pin), so it reads as glued in place. Rather
+      // than re-aim a 3D camera at a DOM layout it knows nothing about, the whole floor fades out (the same gridOn
+      // ease, ≥ 330 ms) whenever that farthest row would land inside the bed-to-desks block, measured live, never a
+      // guessed scroll range.
+      if (portrait) {
+        const home = rect(q('[data-home]')), desks = rect(q('.night .shift-office'))
+        if (home && desks) {
+          const bandY = projectGrid(0.5, 1, 0, cam, vw)[1] + gridY
+          if (bandY > home.y0 - 24 && bandY < desks.y1 + 24) target = 0
+        }
+      }
     } else target = 0
     // after the fall the points settle behind the form as its ground, until the night takes them
     // after the fall the points settle behind the form as its ground, until the night takes them (v52: back, the owner
@@ -433,6 +447,8 @@ export async function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions
     pu.uConv.value = conv
     const leadEv = events[events.length - 1]
     if (leadEv) { const [lx, ly] = projectGrid(leadEv.gx, leadEv.gz, 0, cam, vw); pu.uLead.value = [lx, ly + gridY] }
+    // test probe (?probe / dev only): the grid's farthest row's own screen Y, to prove it never sits inside the bed-to-desks block
+    if (counting) (window as Window & { __horizon?: number[] }).__horizon = [Math.round(projectGrid(0.5, 1, 0, cam, vw)[1] + gridY), +gridOn.toFixed(3), +target.toFixed(3)]
 
     // ---- the night (§4.11): each event = a beam rising from its grid point to its label; the labels
     //      sit on ONE log line under the H2; the crest carries the hour.
@@ -578,7 +594,30 @@ export async function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions
     const youOn = visible(youR) && !!phone && !!stage
     // the phone's network leaves with the phone (brief-v4.3 §4.4: it hands over to the FAQ, no triangle over the questions)
     const youGone = youR ? clamp01((vh - youR.y1) / (vh * 0.35)) : 1
-    phoneLit = approach(phoneLit, youOn ? (0.35 + 0.65 * bus.phone.lit) * (1 - youGone) : 0, youGone > 0 ? 0.3 : 0.08, dt)
+    // owner 10/11: the fan used to brighten the instant the you-section's sticky stage was even 1 px on screen — and
+    // because the office's OWN stage stays pinned (its last frame, "Day 90") for a long stretch of scroll after that
+    // (measured: bus.c4 already read 1 while the office's box was still ~900 px tall on screen), the nodes fanned out
+    // under a model that had not actually left. The gate reads the office section's own box instead of c4 (which only
+    // times the packet's flight, not the office's exit).
+    // jury v59: smooth(60, -60, …) was already half-open with 60 px of the office still ON screen (the comment's
+    // "shut while any sliver is on screen" was wrong) — measured 19–41 % open with the office still fully visible,
+    // 390/375. smooth(0, -120, …) reads 0 for every y1 ≥ 0 (not one office pixel left) and opens over the FOLLOWING
+    // 120 px, once it is unambiguously gone. Mobile only: the dono said the desktop v5.8 handoff (always on,
+    // `bus.phone.lit`-only) was not broken, so the gate itself never applies there (§5, juri-v59).
+    const handoff = portrait ? (officeR ? smooth(0, -120, officeR.y1) : 1) : 1
+    phoneLit = approach(phoneLit, youOn ? (0.35 + 0.65 * bus.phone.lit) * (1 - youGone) * handoff : 0, youGone > 0 ? 0.3 : 0.08, dt)
+    // jury v59b: `names.style.opacity = phoneLit` had no portrait guard, so the desktop's 6 names (never gated,
+    // never reported broken) now faded with the SAME pulse as the phone's screen reveal — 35 % through the whole
+    // "All clear" close, 40–77 % between orders, measured against the live site's flat 100 %. On a phone, tying it
+    // to phoneLit ALSO pulses the one on-screen label down to ~0.45 on "Sending" (phoneLit dips with bus.phone.lit
+    // between orders), and axe then finds a frozen low-contrast label once the section has scrolled away (the style
+    // was only ever written while youOn). Portrait only, and on the section's own arrival/departure (handoff × (1 −
+    // youGone), not the order's pulse): 0 while off-screen (written every frame, nothing stays frozen), 1 the whole
+    // time the section is on screen past the office handoff, regardless of which order is mid-gesture.
+    if (portrait) {
+      const names = q<HTMLElement>('[data-net-names]')
+      if (names) names.style.opacity = (youOn ? handoff * (1 - youGone) : 0).toFixed(3)
+    }
     let phoneF: NetF | null = null
     let travelAt: ((e: number) => Pt) | null = null, travelT = 0
     if (youOn && phone && stage) {
@@ -591,7 +630,10 @@ export async function startEngine(canvas: HTMLCanvasElement, opts: EngineOptions
         travelAt = (e) => (e < 0.5 ? [mix(C[0], B[0], e * 2), mix(C[1], B[1], e * 2)] : [mix(B[0], A[0], e * 2 - 1), mix(B[1], A[1], e * 2 - 1)])
         travelT = 1 - clamp01(tr)
       }
-      // brief-v4.5 §9.2: the six names under their nodes (1440); at 390 only the one whose turn it is, centred under the base
+      // brief-v4.5 §9.2: the six names under their nodes (1440); at 390 only the one whose turn it is, centred under the base.
+      // jury v59: the names used to show the instant their node was positioned, regardless of whether the node itself
+      // was lit yet — a name (or 6, on the desktop) floating under the card before any wire had drawn. The container's
+      // own opacity (portrait only, see above) now gates that; this block only ever moves and clash-hides them.
       const names = q<HTMLElement>('[data-net-names]')
       if (names) {
         const kids = names.children

@@ -55,6 +55,22 @@ export function initNightShift(reduced: boolean) {
   let shown = 0 // the count on the bed: packets that have arrived
   let curT = 0
 
+  // owner 10/11: on a phone the bed must sit ABOVE every desk, with its own room to the title above it (proto.css
+  // mobile .shift: display:flex, flex-direction:column — the bed then the model, in normal flow, never overlapping).
+  // The title wraps to 1 or 2 lines depending on the viewport's width and the loaded font: its real box is measured
+  // (not a guessed px), the same idiom as the office's K2 FLIP (domScenes.ts measureK2).
+  // jury v59: the moon's own strip (proto.css .moon-path, now order: -1, the first flex item) also starts this far
+  // from the title — a flat 10 px, not 20: the flex `gap` below already separates it from the bed in turn.
+  const titleEl = sec.querySelector<HTMLElement>('h2')
+  const setNightGap = () => {
+    if (!titleEl || innerWidth >= 768) return
+    const tb = titleEl.getBoundingClientRect(), sb = shift.getBoundingClientRect()
+    shift.style.setProperty('--night-gap-top', `${Math.max(0, Math.ceil(tb.bottom - sb.top)) + 10}px`)
+  }
+  setNightGap()
+  addEventListener('resize', setNightGap)
+  document.fonts?.ready.then(setNightGap).catch((error: unknown) => console.warn('fonts.ready failed', error))
+
   // ---- the board (§4.2): a station board that rolls one line; only transforms and opacity animate
   const lineEl = (l: BoardLine, prev: boolean) => {
     const el = document.createElement('span')
@@ -116,15 +132,20 @@ export function initNightShift(reduced: boolean) {
 
   const place = (t: number) => {
     if (!moon || !path) return
-    const W = path.clientWidth, H = path.clientHeight
     // t = 1 gives (1 - 0.9) / 0.1 = 0.9999999999999998 in floats: exit never reached 1, the moon stayed at opacity
     // 2e-16 and kept its dark box (an empty box beside "You, asleep", owner v4.8). The end is the end.
     const exit = t >= 1 ? 1 : clamp01((t - 0.9) / 0.1)
-    const u = Math.min(t, 0.9) / 0.9
-    // brief-v4.3 §6.5: the moon leaves DOWN (it used to slide 80 px right, past the margin at 390)
-    const x = u * W
-    const y = H * (1 - Math.sin(Math.PI * u)) + exit * 40
-    moon.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
+    // jury v59: on a phone the moon no longer arcs (brief-v4.3 §6.5's path crossed the bed once the bed moved into
+    // that strip, 10/11's fix for the dono's 1st complaint) — it sits still in its own band above the bed (proto.css
+    // .moon-path/.moon mobile rules), so it can never land on text; only the hour below still ticks every frame.
+    if (innerWidth >= 768) {
+      const W = path.clientWidth, H = path.clientHeight
+      const u = Math.min(t, 0.9) / 0.9
+      // brief-v4.3 §6.5: the moon leaves DOWN (it used to slide 80 px right, past the margin at 390)
+      const x = u * W
+      const y = H * (1 - Math.sin(Math.PI * u)) + exit * 40
+      moon.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
+    } else if (moon.style.transform) moon.style.transform = ''
     moon.style.opacity = String(1 - exit)
     // gone moon, no dark box: its box would cut a hole in the dawn horizon (T3) where nothing is drawn
     if (exit >= 1) { if (moon.hasAttribute('data-dark')) moon.removeAttribute('data-dark') } else if (moon.dataset.dark !== '10') moon.dataset.dark = '10'
@@ -146,7 +167,7 @@ export function initNightShift(reduced: boolean) {
   const syncCount = (t: number) => { transit.clear(); shown = doneAt(t); setCount(shown, false) }
 
   const poster = () => { shift.dataset.on = 'true'; place(POSTER_T); write(POSTER_T, 0, false); syncCount(POSTER_T) }
-  if (reduced) { poster(); return undefined }
+  if (reduced) { poster(); return () => removeEventListener('resize', setNightGap) }
 
   const hz = document.querySelector<HTMLElement>('[data-horizon="diagnostic"]')
   let hzD = 0
@@ -211,5 +232,5 @@ export function initNightShift(reduced: boolean) {
   }
   ticker.add(task)
   addEventListener('resize', ticker.wake)
-  return () => { ticker.remove(task); removeEventListener('resize', ticker.wake) }
+  return () => { ticker.remove(task); removeEventListener('resize', ticker.wake); removeEventListener('resize', setNightGap) }
 }

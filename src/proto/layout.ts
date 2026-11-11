@@ -56,14 +56,39 @@ export function netToScreen(n: V2, f: NetF): V2 {
  *  the base of the stage. Viewport px. */
 export function phoneNetFrame(phone: { x0: number; x1: number; y1: number }, stageBottom: number, vw: number): NetF {
   const portrait = isPortrait(vw)
-  // brief-v4.5 §9.1: the network gets height (160 px at 1440, 150 at 390, instead of ~60) and room under it for the
-  // names (base 124 px above the stage's foot at 1440, 154 at 390); 720 px wide at 1440 (c3–c10), 350 at 390
-  let baseY = stageBottom - (portrait ? 154 : 124)
+  if (portrait) {
+    // owner 10/11 (2nd round): the fan read flat (≈ 100 px tall) — the 154 px reserve below it was sized for a
+    // fixed "room for the names" guess, not for how much air the card's box actually leaves above the stage's foot.
+    // It now claims nearly all of that real gap (minus only the label's own box: its name + state line and the
+    // 14 px offset baked into its own placement, measured live at 44 px tall, ≈ 70 px with a safety margin so it
+    // never clips at the stage's own foot), so the agents sit deep, not on a line. half now stops 24 px from either
+    // edge (was 20).
+    // jury v59: on the dono's real window (390×740, Safari's chrome at rest) the fan still read shallow (83 px):
+    // 844 is the WHOLE screen, not the useful one. The vertex's respiro goes 40 → 28 px (still clear air, not the
+    // touching 16 px of round 1) to recover depth, same on every width.
+    // jury (11/11): the card moved down 17 px to clear 24 px under the title (proto.css .phone top); 28 → 22 here
+    // gives part of that back, and keeps the leque ≥ 130 px at 390×740. Still clear air (round 1's defect was 16 px
+    // and touching).
+    const gap = 22
+    const labelRoom = 70
+    // a screen short enough that stageBottom - labelRoom would land above the card (the unit floor below would then
+    // draw the vertex OVER it, the exact defect being fixed): baseY never drops below where unit's own 40 px floor
+    // keeps the vertex at its gap under the card — the fan then uses whatever is left for the label, down to none
+    // on the shortest tested screen, rather than ever touching the card.
+    const baseY = Math.max(stageBottom - labelRoom, phone.y1 + gap + 40 * 1.55)
+    const unit = Math.max(40, (baseY - (phone.y1 + gap)) / 1.55)
+    const half = Math.min(175, vw / 2 - 24)
+    return { cx: (phone.x0 + phone.x1) / 2, baseY, unit, sx: half / unit }
+  }
+  // brief-v4.5 §9.1: the network gets height (160 px at 1440, instead of ~60) and room under it for the names (base
+  // 124 px above the stage's foot); 720 px wide (c3–c10). Desktop: not reported broken, untouched by the owner's 2
+  // mobile rounds (10/11).
+  let baseY = stageBottom - 124
   let unit = Math.max(40, (baseY - (phone.y1 + 16)) / 1.55)
   // v54 (owner: "so the person sees what is happening"; jury v53: the names sat at the foot of the screen, far from the
   // card): at 1440 the network is at most 130 px tall, so its base and the names under it come up toward the card
-  if (!portrait && unit > 84) { unit = 84; baseY = phone.y1 + 16 + unit * 1.55 }
-  const half = portrait ? Math.min(175, vw / 2 - 20) : Math.min(vw * 0.25, 360)
+  if (unit > 84) { unit = 84; baseY = phone.y1 + 16 + unit * 1.55 }
+  const half = Math.min(vw * 0.25, 360)
   return { cx: (phone.x0 + phone.x1) / 2, baseY, unit, sx: half / unit }
 }
 
